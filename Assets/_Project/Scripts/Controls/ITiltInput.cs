@@ -20,4 +20,10 @@ namespace EcoTilt.Controls
     {
         void Calibrate();
     }
+
+    /// <summary>Fuentes que pueden describir su estado para depurar (qué sensor usan, qué valores leen).</summary>
+    public interface ITiltDiagnostics
+    {
+        string Diagnostics { get; }
+    }
 }

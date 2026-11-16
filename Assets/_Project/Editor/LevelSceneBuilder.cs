@@ -22,7 +22,7 @@ namespace EcoTilt.EditorTools
         private const string Root = "Assets/_Project";
         public const string ScenePath = Root + "/Scenes/Nivel1.unity";
         /// <summary>Subir este número cuando cambia el diseño del nivel: la escena se regenera sola una vez.</summary>
-        public const int LevelVersion = 3;
+        public const int LevelVersion = 4;
         private const string VersionPath = Root + "/Data/NivelGenerado_version.txt";
         private const string LayoutPath = Root + "/Data/BoardLayout_Laberinto.asset";
         private const string ThemePath = Root + "/Data/Tema_Tablero.asset";
@@ -60,6 +60,8 @@ namespace EcoTilt.EditorTools
 
             var systems = new GameObject("Sistemas");
             TiltInputProvider input = systems.AddComponent<TiltInputProvider>();
+            TiltDebugOverlay overlay = systems.AddComponent<TiltDebugOverlay>();
+            EditorAssetUtility.SetReference(overlay, "source", input);
 
             BoardBuilder builder = CreateBoard(input);
             builder.Configure(layout, theme, bins);

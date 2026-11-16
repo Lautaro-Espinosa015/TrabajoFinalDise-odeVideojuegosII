@@ -7,9 +7,11 @@ namespace EcoTilt.Controls
     /// Inclinación a partir de la dirección de la gravedad medida por el teléfono.
     /// Usa el GravitySensor (fusión de acelerómetro + giroscopio en Android) y, si el equipo
     /// no lo tiene, cae al acelerómetro con un filtro paso bajo.
+    /// Los sensores se buscan y activan en cada lectura: con Unity Remote aparecen recién
+    /// cuando el teléfono se conecta, un momento después de entrar en Play.
     /// La posición en la que el jugador sostiene el teléfono al empezar se toma como neutra.
     /// </summary>
-    public sealed class SensorTiltInput : ITiltInput, ICalibratable
+    public sealed class SensorTiltInput : ITiltInput, ICalibratable, ITiltDiagnostics
     {
         public struct Settings
         {
@@ -23,6 +25,9 @@ namespace EcoTilt.Controls
 
         private readonly Settings _settings;
         private Vector3 _filteredGravity;
+        private Vector3 _lastRaw;
+        private Vector2 _lastTilt;
+        private string _source = "ninguno";
         private bool _hasSample;
         private bool _pendingCalibration;
         private float _neutralRoll;
@@ -32,11 +37,12 @@ namespace EcoTilt.Controls
         {
             _settings = settings;
             _pendingCalibration = settings.CalibrateOnFirstSample;
-            EnableSensors();
         }
 
-        /// <summary>True si el dispositivo tiene algún sensor utilizable.</summary>
-        public static bool IsSupported => GravitySensor.current != null || Accelerometer.current != null;
+        public string Diagnostics =>
+            $"Sensor: {_source}\n" +
+            $"Gravedad: ({_lastRaw.x:0.00}, {_lastRaw.y:0.00}, {_lastRaw.z:0.00})\n" +
+            $"Inclinación: ({_lastTilt.x:0.00}, {_lastTilt.y:0.00})";
 
         public void Calibrate()
         {
@@ -52,8 +58,13 @@ namespace EcoTilt.Controls
 
         public Vector2 ReadTilt()
         {
-            if (!TryReadGravity(out Vector3 raw)) return Vector2.zero;
+            if (!TryReadGravity(out Vector3 raw))
+            {
+                _lastTilt = Vector2.zero;
+                return Vector2.zero;
+            }
 
+            _lastRaw = raw;
             float alpha = 1f - Mathf.Exp(-_settings.Responsiveness * Time.unscaledDeltaTime);
             _filteredGravity = _hasSample ? Vector3.Lerp(_filteredGravity, raw, alpha) : raw;
             _hasSample = true;
@@ -70,7 +81,8 @@ namespace EcoTilt.Controls
             if (_settings.InvertY) tilt.y = -tilt.y;
 
             tilt = Vector2.ClampMagnitude(tilt, 1f);
-            return tilt.magnitude < _settings.DeadZone ? Vector2.zero : tilt;
+            _lastTilt = tilt.magnitude < _settings.DeadZone ? Vector2.zero : tilt;
+            return _lastTilt;
         }
 
         // Roll: inclinación lateral. Pitch: borde superior del teléfono hacia abajo = positivo.
@@ -80,32 +92,43 @@ namespace EcoTilt.Controls
             pitch = Mathf.Atan2(gravity.y, -gravity.z) * Mathf.Rad2Deg;
         }
 
-        private static void EnableSensors()
-        {
-            if (GravitySensor.current != null && !GravitySensor.current.enabled)
-                InputSystem.EnableDevice(GravitySensor.current);
-            if (Accelerometer.current != null && !Accelerometer.current.enabled)
-                InputSystem.EnableDevice(Accelerometer.current);
-        }
-
-        private static bool TryReadGravity(out Vector3 gravity)
+        private bool TryReadGravity(out Vector3 gravity)
         {
             GravitySensor gravitySensor = GravitySensor.current;
-            if (gravitySensor != null && gravitySensor.enabled)
+            if (Ready(gravitySensor))
             {
                 gravity = gravitySensor.gravity.ReadValue();
-                if (gravity.sqrMagnitude > 0.0001f) return true;
+                if (gravity.sqrMagnitude > 0.0001f)
+                {
+                    _source = $"GravitySensor ({gravitySensor.displayName})";
+                    return true;
+                }
             }
 
             Accelerometer accelerometer = Accelerometer.current;
-            if (accelerometer != null && accelerometer.enabled)
+            if (Ready(accelerometer))
             {
                 gravity = accelerometer.acceleration.ReadValue();
-                if (gravity.sqrMagnitude > 0.0001f) return true;
+                if (gravity.sqrMagnitude > 0.0001f)
+                {
+                    _source = $"Accelerometer ({accelerometer.displayName})";
+                    return true;
+                }
             }
 
+            _source = gravitySensor == null && accelerometer == null
+                ? "ninguno conectado"
+                : "conectado, esperando datos";
             gravity = Vector3.zero;
             return false;
+        }
+
+        /// <summary>Activa el sensor si existe y todavía no está activo.</summary>
+        private static bool Ready(InputDevice device)
+        {
+            if (device == null) return false;
+            if (!device.enabled) InputSystem.EnableDevice(device);
+            return device.enabled;
         }
     }
 }

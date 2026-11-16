@@ -8,7 +8,7 @@ namespace EcoTilt.Controls
     /// y las expone como un único ITiltInput. Es el único lugar que conoce las clases concretas.
     /// </summary>
     [DefaultExecutionOrder(-100)]
-    public sealed class TiltInputProvider : MonoBehaviour, ITiltInput, ICalibratable
+    public sealed class TiltInputProvider : MonoBehaviour, ITiltInput, ICalibratable, ITiltDiagnostics
     {
         [Header("Sensores del teléfono (acelerómetro / giroscopio)")]
         [SerializeField] private bool useSensors = true;
@@ -28,6 +28,11 @@ namespace EcoTilt.Controls
 
         private ITiltInput _input;
         private SensorTiltInput _sensor;
+        private Vector2 _lastTilt;
+
+        public string Diagnostics =>
+            (_sensor != null ? _sensor.Diagnostics : "Sensores desactivados") +
+            $"\nTablero recibe: ({_lastTilt.x:0.00}, {_lastTilt.y:0.00})";
 
         private void Awake()
         {
@@ -36,7 +41,8 @@ namespace EcoTilt.Controls
 
         public Vector2 ReadTilt()
         {
-            return _input != null ? _input.ReadTilt() : Vector2.zero;
+            _lastTilt = _input != null ? _input.ReadTilt() : Vector2.zero;
+            return _lastTilt;
         }
 
         public void Calibrate()
@@ -48,7 +54,8 @@ namespace EcoTilt.Controls
         {
             var sources = new List<ITiltInput>();
 
-            if (useSensors && SensorTiltInput.IsSupported)
+            // Siempre se agrega: los sensores pueden aparecer después (Unity Remote) y se activan al leer.
+            if (useSensors)
             {
                 _sensor = new SensorTiltInput(new SensorTiltInput.Settings
                 {

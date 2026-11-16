@@ -89,7 +89,7 @@ def exit_row():
     return None
 
 
-def top_view(out):
+def top_view(out, clean=False):
     fig, ax = plt.subplots(figsize=(9.6, 6.6), dpi=200)
     ax.add_patch(Rectangle((-W / 2, -L / 2), W, L, facecolor=C_FLOOR, edgecolor="none"))
     for gy in range(GH):
@@ -150,8 +150,9 @@ def top_view(out):
         n = prev[n]
     path = path[::-1] + [(rx + RAMP_LEN + .4, zc)]
     xs, zs = zip(*path)
-    ax.plot(xs, zs, color="white", lw=1.8, ls=(0, (4, 2)), zorder=5, alpha=.9)
-    ax.add_patch(FancyArrowPatch(path[-2], path[-1], arrowstyle="-|>", mutation_scale=14, color="white", lw=1.8, zorder=6))
+    if not clean:
+        ax.plot(xs, zs, color="white", lw=1.8, ls=(0, (4, 2)), zorder=5, alpha=.9)
+        ax.add_patch(FancyArrowPatch(path[-2], path[-1], arrowstyle="-|>", mutation_scale=14, color="white", lw=1.8, zorder=6))
 
     ax.set_xlim(-W / 2 - .5, bx + BIN_D + .5)
     ax.set_ylim(-L / 2 - .5, L / 2 + .5)
@@ -159,6 +160,12 @@ def top_view(out):
     ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_visible(False)
+    if clean:
+        for t in ax.texts:
+            t.set_visible(False)
+        fig.savefig(out, bbox_inches="tight", transparent=True)
+        plt.close(fig)
+        return
     legend = [Rectangle((0, 0), 1, 1, fc=C_FLOOR), Rectangle((0, 0), 1, 1, fc=C_WALL),
               Rectangle((0, 0), 1, 1, fc=C_HOLE, ec=C_GLOW), Rectangle((0, 0), 1, 1, fc=C_RAMP, hatch="//")]
     ax.legend(legend, ["Piso", "Baranda", "Pozo", "Rampa de salto"], loc="lower center",
@@ -208,9 +215,15 @@ def side_view(out):
     plt.close(fig)
 
 
+def cover_view(out):
+    """Vista superior limpia (sin título, leyenda ni recorrido) para la portada."""
+    top_view(out, clean=True)
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     out.mkdir(parents=True, exist_ok=True)
     top_view(out / "layout_superior.png")
     side_view(out / "layout_lateral.png")
+    cover_view(out / "portada_tablero.png")
     print("ok")
