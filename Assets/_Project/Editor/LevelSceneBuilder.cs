@@ -20,7 +20,10 @@ namespace EcoTilt.EditorTools
     {
         private const string Root = "Assets/_Project";
         public const string ScenePath = Root + "/Scenes/Nivel1.unity";
-        private const string LayoutPath = Root + "/Data/BoardLayout_Nivel1.asset";
+        /// <summary>Subir este número cuando cambia el diseño del nivel: la escena se regenera sola una vez.</summary>
+        public const int LevelVersion = 2;
+        private const string VersionPath = Root + "/Data/NivelGenerado_version.txt";
+        private const string LayoutPath = Root + "/Data/BoardLayout_Laberinto.asset";
         private static readonly string[] ObsoleteScenes = { Root + "/Scenes/Nivel1_Laberinto.unity" };
 
         [MenuItem("EcoTilt/Regenerar escena del nivel", priority = 0)]
@@ -62,15 +65,26 @@ namespace EcoTilt.EditorTools
 
             CreateKillZone();
             CreateTestWaste(waste, result.SpawnPoint);
-            SetupCameraAndLight();
+            SetupLight();
+            SetupCamera(result.Footprint);
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
 
             EditorAssetUtility.EnsureFolder(Root + "/Scenes");
             EditorSceneManager.SaveScene(scene, ScenePath);
             UpdateBuildSettings();
+            File.WriteAllText(VersionPath, LevelVersion.ToString());
+            AssetDatabase.ImportAsset(VersionPath);
             AssetDatabase.SaveAssets();
 
             Debug.Log($"EcoTilt: escena lista en {ScenePath}. Play y probá con WASD/flechas o click + mouse.");
             return true;
+        }
+
+        /// <summary>True si la escena no existe o fue generada con una versión anterior del nivel.</summary>
+        public static bool IsOutdated()
+        {
+            if (!File.Exists(ScenePath) || !File.Exists(VersionPath)) return true;
+            return !int.TryParse(File.ReadAllText(VersionPath).Trim(), out int built) || built < LevelVersion;
         }
 
         private static GameObject CreateBoard(TiltInputProvider input)
@@ -112,31 +126,39 @@ namespace EcoTilt.EditorTools
             EditorAssetUtility.SetReference(instance.GetComponent<Respawnable>(), "spawnPoint", spawnPoint);
         }
 
-        private static void SetupCameraAndLight()
+        private static void SetupLight()
         {
             RenderSettings.skybox = null;
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = ShrineTheme.AmbientColor;
 
-            Camera camera = Camera.main;
-            if (camera != null)
-            {
-                camera.transform.position = new Vector3(0f, 14.5f, -11.5f);
-                camera.transform.LookAt(new Vector3(0f, -1f, 2.8f));
-                camera.fieldOfView = 52f;
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = ShrineTheme.BackgroundColor;
-            }
-
             Light sun = Object.FindFirstObjectByType<Light>();
-            if (sun != null)
-            {
-                sun.color = ShrineTheme.SunColor;
-                sun.intensity = 1.2f;
-                sun.shadows = LightShadows.Soft;
-                sun.shadowStrength = 0.85f;
-                sun.transform.rotation = Quaternion.Euler(58f, -28f, 0f);
-            }
+            if (sun == null) return;
+            sun.color = ShrineTheme.SunColor;
+            sun.intensity = 1.2f;
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.8f;
+            sun.transform.rotation = Quaternion.Euler(62f, -30f, 0f);
+        }
+
+        /// <summary>Cámara alta (casi cenital) que encuadra todo el nivel en un teléfono horizontal.</summary>
+        private static void SetupCamera(Bounds footprint)
+        {
+            Camera camera = Camera.main;
+            if (camera == null) return;
+
+            const float pitch = 72f;
+            const float fieldOfView = 40f;
+            const float aspect = 16f / 9f;
+            float halfHeight = Mathf.Max(footprint.size.z, footprint.size.x / aspect) * 0.5f * 1.1f;
+            float distance = halfHeight / Mathf.Tan(fieldOfView * 0.5f * Mathf.Deg2Rad);
+
+            Quaternion rotation = Quaternion.Euler(pitch, 0f, 0f);
+            camera.transform.SetPositionAndRotation(footprint.center - rotation * Vector3.forward * distance, rotation);
+            camera.fieldOfView = fieldOfView;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = ShrineTheme.BackgroundColor;
+            camera.farClipPlane = distance * 3f;
         }
 
         private static Mesh GetBuiltinCube()

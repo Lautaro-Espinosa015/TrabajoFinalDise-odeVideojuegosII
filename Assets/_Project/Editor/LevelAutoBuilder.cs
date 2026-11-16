@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -6,13 +5,13 @@ using UnityEngine;
 namespace EcoTilt.EditorTools
 {
     /// <summary>
-    /// Si la escena del nivel no existe en el proyecto, la genera automáticamente después de compilar
-    /// y la abre. Si ya existe, no hace nada: la escena es del equipo y se edita a mano.
+    /// Si la escena del nivel no existe o quedó desactualizada (LevelSceneBuilder.LevelVersion), la genera
+    /// automáticamente después de compilar y la abre. Si está al día no hace nada: la escena se edita a mano.
     /// </summary>
     [InitializeOnLoad]
     internal static class LevelAutoBuilder
     {
-        private const string AttemptKey = "EcoTilt.LevelAutoBuilder.Attempted";
+        private static readonly string AttemptKey = "EcoTilt.LevelAutoBuilder.Attempted.v" + LevelSceneBuilder.LevelVersion;
 
         static LevelAutoBuilder()
         {
@@ -22,7 +21,7 @@ namespace EcoTilt.EditorTools
         private static void TryBuild()
         {
             if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
-            if (File.Exists(LevelSceneBuilder.ScenePath) || SessionState.GetBool(AttemptKey, false)) return;
+            if (!LevelSceneBuilder.IsOutdated() || SessionState.GetBool(AttemptKey, false)) return;
 
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
