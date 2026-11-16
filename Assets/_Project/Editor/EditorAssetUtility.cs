@@ -41,5 +41,30 @@ namespace EcoTilt.EditorTools
             property.objectReferenceValue = value;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
+
+        /// <summary>Asigna un array serializado de referencias.</summary>
+        public static void SetReferenceArray(Object target, string fieldName, Object[] values)
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty property = serialized.FindProperty(fieldName);
+            if (property == null || !property.isArray)
+            {
+                Debug.LogError($"No se encontró el array '{fieldName}' en {target.GetType().Name}.");
+                return;
+            }
+            property.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++)
+                property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        public static void SetVector3(Object target, string fieldName, Vector3 value)
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty property = serialized.FindProperty(fieldName);
+            if (property == null) return;
+            property.vector3Value = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 }

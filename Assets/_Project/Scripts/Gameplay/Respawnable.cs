@@ -6,12 +6,14 @@ namespace EcoTilt.Gameplay
 {
     /// <summary>
     /// Oculta el objeto, espera un tiempo (1 s por defecto) y lo vuelve a colocar en el punto de inicio
-    /// con velocidad cero. El punto de inicio puede ser hijo del tablero, así sigue su inclinación.
+    /// con velocidad cero. El punto de inicio es hijo del tablero, así sigue su inclinación.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public sealed class Respawnable : MonoBehaviour, IRespawnable
     {
         [SerializeField] private Transform spawnPoint;
+        [Tooltip("Desplazamiento respecto del punto de inicio (para que varios objetos no aparezcan encimados).")]
+        [SerializeField] private Vector3 spawnOffset;
         [SerializeField, Min(0f)] private float respawnDelay = 1f;
 
         /// <summary>Se dispara cuando el objeto ya reapareció.</summary>
@@ -20,7 +22,7 @@ namespace EcoTilt.Gameplay
         private Rigidbody _body;
         private Renderer[] _renderers;
         private Collider[] _colliders;
-        private Quaternion _spawnRotationOffset;
+        private Quaternion _restRotation;
         private Coroutine _routine;
 
         public bool IsRespawning => _routine != null;
@@ -38,15 +40,12 @@ namespace EcoTilt.Gameplay
 
             // Conserva la orientación inicial del objeto (por ejemplo, la botella acostada).
             Quaternion reference = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
-            _spawnRotationOffset = Quaternion.Inverse(reference) * transform.rotation;
+            _restRotation = Quaternion.Inverse(reference) * transform.rotation;
         }
 
         private void OnDisable()
         {
-            if (_routine == null) return;
-            StopCoroutine(_routine);
-            _routine = null;
-            SetPresence(true);
+            StopRoutine();
         }
 
         public void RequestRespawn()
@@ -55,16 +54,36 @@ namespace EcoTilt.Gameplay
             _routine = StartCoroutine(RespawnRoutine());
         }
 
+        /// <summary>Oculta el objeto y lo deja quieto (por ejemplo, mientras se regenera el mapa).</summary>
+        public void Suspend()
+        {
+            StopRoutine();
+            SetPresence(false);
+        }
+
+        /// <summary>Lo coloca ya mismo en el punto de inicio, visible y quieto.</summary>
+        public void ResetToSpawn()
+        {
+            StopRoutine();
+            PlaceAtSpawn();
+            Show();
+        }
+
         private IEnumerator RespawnRoutine()
         {
             SetPresence(false);
             yield return new WaitForSeconds(respawnDelay);
             PlaceAtSpawn();
-            SetPresence(true);
-            _body.linearVelocity = Vector3.zero;
-            _body.angularVelocity = Vector3.zero;
+            Show();
             _routine = null;
             Respawned?.Invoke(this);
+        }
+
+        private void StopRoutine()
+        {
+            if (_routine == null) return;
+            StopCoroutine(_routine);
+            _routine = null;
         }
 
         private void PlaceAtSpawn()
@@ -75,11 +94,19 @@ namespace EcoTilt.Gameplay
                 return;
             }
 
-            Vector3 position = spawnPoint.position;
-            Quaternion rotation = spawnPoint.rotation * _spawnRotationOffset;
+            Vector3 position = spawnPoint.position + spawnPoint.rotation * spawnOffset;
+            Quaternion rotation = spawnPoint.rotation * _restRotation;
+            _body.isKinematic = true;
             transform.SetPositionAndRotation(position, rotation);
             _body.position = position;
             _body.rotation = rotation;
+        }
+
+        private void Show()
+        {
+            SetPresence(true);
+            _body.linearVelocity = Vector3.zero;
+            _body.angularVelocity = Vector3.zero;
         }
 
         private void SetPresence(bool present)

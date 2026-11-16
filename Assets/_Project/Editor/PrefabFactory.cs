@@ -1,4 +1,5 @@
 using System;
+using EcoTilt.Board;
 using EcoTilt.Gameplay;
 using UnityEditor;
 using UnityEngine;
@@ -22,10 +23,10 @@ namespace EcoTilt.EditorTools
 
         private readonly string _folder;
         private readonly LevelMaterialLibrary _library;
-        private readonly ShrineTheme _theme;
+        private readonly BoardTheme _theme;
         private readonly BoardDimensions _size;
 
-        public PrefabFactory(string folder, LevelMaterialLibrary library, ShrineTheme theme, BoardDimensions size)
+        public PrefabFactory(string folder, LevelMaterialLibrary library, BoardTheme theme, BoardDimensions size)
         {
             _folder = folder;
             _library = library;
