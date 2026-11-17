@@ -48,10 +48,19 @@ namespace EcoTilt.Gameplay
             StopRoutine();
         }
 
-        public void RequestRespawn()
+        public bool RequestRespawn()
         {
-            if (IsRespawning || !isActiveAndEnabled) return;
+            if (IsRespawning || !isActiveAndEnabled) return false;
             _routine = StartCoroutine(RespawnRoutine());
+            return true;
+        }
+
+        /// <summary>Asigna punto de inicio y desplazamiento, y toma la orientación actual como la de aparición.</summary>
+        public void Configure(Transform point, Vector3 offset)
+        {
+            spawnPoint = point;
+            spawnOffset = offset;
+            _restRotation = Quaternion.Inverse(point.rotation) * transform.rotation;
         }
 
         /// <summary>Oculta el objeto y lo deja quieto (por ejemplo, mientras se regenera el mapa).</summary>

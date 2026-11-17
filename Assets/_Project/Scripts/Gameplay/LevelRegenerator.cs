@@ -2,19 +2,20 @@ using System;
 using System.Collections;
 using EcoTilt.Board;
 using EcoTilt.Level;
+using EcoTilt.Waste;
 using UnityEngine;
 
 namespace EcoTilt.Gameplay
 {
     /// <summary>
     /// Al quedarse sin vidas, genera un laberinto nuevo (siempre distinto), rearma el tablero,
-    /// devuelve los residuos al inicio y restablece las vidas.
+    /// devuelve los residuos activos al inicio y restablece las vidas.
     /// </summary>
     public sealed class LevelRegenerator : MonoBehaviour
     {
         [SerializeField] private BoardBuilder board;
         [SerializeField] private LivesSystem lives;
-        [SerializeField] private Respawnable[] items = new Respawnable[0];
+        [SerializeField] private WasteSpawner spawner;
         [SerializeField] private MazeSettings maze = new MazeSettings();
         [Tooltip("Espera antes de rearmar, para que el jugador vea que perdió.")]
         [SerializeField, Min(0f)] private float delay = 1.5f;
@@ -51,7 +52,13 @@ namespace EcoTilt.Gameplay
 
         private void OnOutOfLives()
         {
-            if (!IsRegenerating) StartCoroutine(Regenerate(delay));
+            RequestNewMap(delay);
+        }
+
+        /// <summary>Arma un laberinto nuevo después de <paramref name="wait"/> segundos (si no se está armando ya).</summary>
+        public void RequestNewMap(float wait)
+        {
+            if (!IsRegenerating) StartCoroutine(Regenerate(wait));
         }
 
         private IEnumerator Regenerate(float wait)
@@ -59,7 +66,7 @@ namespace EcoTilt.Gameplay
             IsRegenerating = true;
             yield return new WaitForSeconds(wait);
 
-            foreach (Respawnable item in items) item.Suspend();
+            spawner.SuspendAll();
 
             string map = MazeGenerator.Generate(maze, _random);
             board.Rebuild(MazeGrid.Parse(map));
@@ -67,11 +74,7 @@ namespace EcoTilt.Gameplay
             // Esperar un paso de física para que los colliders nuevos estén activos antes de soltar los residuos.
             yield return new WaitForFixedUpdate();
 
-            foreach (Respawnable item in items)
-            {
-                item.SetSpawnPoint(board.SpawnPoint);
-                item.ResetToSpawn();
-            }
+            spawner.ResetAllToSpawn();
 
             lives.ResetLives();
             MapNumber++;

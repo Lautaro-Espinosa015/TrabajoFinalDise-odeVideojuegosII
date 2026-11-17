@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 5602712403887979170}
   - component: {fileID: 3375429066901033833}
   - component: {fileID: 722932599300033367}
+  - component: {fileID: 3305200516541665925}
   m_Layer: 0
   m_Name: Residuo_Caja
   m_TagString: Untagged
@@ -155,7 +156,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Gameplay.Respawnable
   spawnPoint: {fileID: 0}
+  spawnOffset: {x: 0, y: 0, z: 0}
   respawnDelay: 1
+--- !u!114 &3305200516541665925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6996535406384149799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23b9f2bc5ecbd634b83281795eef0e29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Waste.WasteItem
+  category: {fileID: 11400000, guid: b72cddd523a38424cb8dc745a3e3452d, type: 2}
+  displayName: La caja
+  restEuler: {x: 0, y: 0, z: 0}
 --- !u!1 &8711256396844526759
 GameObject:
   m_ObjectHideFlags: 0

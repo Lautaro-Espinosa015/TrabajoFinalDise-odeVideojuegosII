@@ -33,6 +33,15 @@ namespace EcoTilt.Gameplay
             if (killZone != null) killZone.Fell -= OnFell;
         }
 
+        /// <summary>Suma una vida si no está al máximo. Devuelve true si la sumó.</summary>
+        public bool AddLife()
+        {
+            if (Lives >= maxLives) return false;
+            Lives++;
+            LivesChanged?.Invoke(Lives);
+            return true;
+        }
+
         public void ResetLives()
         {
             Lives = maxLives;

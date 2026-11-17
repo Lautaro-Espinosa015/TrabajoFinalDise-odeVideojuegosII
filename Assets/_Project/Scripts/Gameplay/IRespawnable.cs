@@ -4,6 +4,7 @@ namespace EcoTilt.Gameplay
     public interface IRespawnable
     {
         bool IsRespawning { get; }
-        void RequestRespawn();
+        /// <summary>Pide volver al inicio. Devuelve false si no corresponde (ya está reapareciendo o está desactivado).</summary>
+        bool RequestRespawn();
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using EcoTilt.Board;
 using EcoTilt.Gameplay;
+using EcoTilt.UI;
+using EcoTilt.Waste;
 using UnityEditor;
 using UnityEngine;
 
@@ -150,6 +152,136 @@ namespace EcoTilt.EditorTools
             wall.transform.localScale = size;
             wall.GetComponent<MeshRenderer>().sharedMaterial = _theme.DarkStone;
             wall.GetComponent<Collider>().sharedMaterial = _theme.Surface;
+        }
+
+        // ------------------------------------------------------------------ preparación (también actualiza prefabs ya existentes)
+        /// <summary>Agrega o actualiza WasteItem (categoría, nombre, rotación de aparición) en los prefabs de residuos.</summary>
+        public WastePrefabs PrepareWaste(WastePrefabs waste, WasteCategories categories)
+        {
+            var lying = new Vector3(0f, 0f, 90f);
+            return new WastePrefabs
+            {
+                Bottle = Upgrade(waste.Bottle, root => GetOrAdd<WasteItem>(root).Setup(categories.Plastic, "La botella", lying)),
+                Can = Upgrade(waste.Can, root => GetOrAdd<WasteItem>(root).Setup(categories.Metal, "La lata", lying)),
+                Box = Upgrade(waste.Box, root => GetOrAdd<WasteItem>(root).Setup(categories.Cardboard, "La caja", Vector3.zero))
+            };
+        }
+
+        /// <summary>Agrega o actualiza RecyclingBin y su zona de detección (trigger) en los prefabs de contenedores.</summary>
+        public GameObject[] PrepareBins(GameObject[] bins, WasteCategories categories, WastePrefabs waste)
+        {
+            WasteCategory[] order = categories.All;
+            GameObject[] icons = { waste.Bottle, waste.Can, waste.Box };
+            float w = _size.BinWidth;
+            float d = _size.BinDepth;
+            float h = _size.BinHeight;
+            float t = _size.BinWall;
+
+            var result = new GameObject[bins.Length];
+            for (int i = 0; i < bins.Length; i++)
+            {
+                WasteCategory category = order[i % order.Length];
+                GameObject icon = icons[i % icons.Length];
+                result[i] = Upgrade(bins[i], root =>
+                {
+                    BuildSign(root, category, icon, h);
+                    GetOrAdd<RecyclingBin>(root).Setup(category,
+                        new Vector3(0f, -h + t + 0.2f, 0f),
+                        new Vector2(w * 0.5f - t - 0.25f, d * 0.5f - t - 0.25f));
+                    BoxCollider trigger = GetOrAdd<BoxCollider>(root);
+                    trigger.isTrigger = true;
+                    trigger.center = new Vector3(0f, -h * 0.55f, 0f);
+                    trigger.size = new Vector3(w - 2f * t, h * 0.7f, d - 2f * t);
+                });
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Cartel sobre el contenedor: nombre de la categoría (siempre mirando a la cámara) y una réplica
+        /// girando del residuo que va ahí. Se rehace cada vez para reflejar cambios de categoría.
+        /// </summary>
+        private void BuildSign(GameObject root, WasteCategory category, GameObject iconSource, float binHeight)
+        {
+            foreach (string old in new[] { "Cartel", "Icono" })
+            {
+                Transform existing = root.transform.Find(old);
+                if (existing != null) UnityEngine.Object.DestroyImmediate(existing.gameObject);
+            }
+
+            // Cartel con el nombre
+            var sign = new GameObject("Cartel");
+            sign.transform.SetParent(root.transform, false);
+            sign.transform.localPosition = new Vector3(0f, 2.3f, 0f);
+            sign.AddComponent<FaceCamera>();
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var label = new GameObject("Texto");
+            label.transform.SetParent(sign.transform, false);
+            var text = label.AddComponent<TextMesh>();
+            text.text = category.DisplayName.Split(' ')[0].ToUpperInvariant(); // "CARTÓN", "PLÁSTICO", "METAL"
+            text.font = font;
+            text.fontSize = 64;
+            text.characterSize = 0.05f;
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.fontStyle = FontStyle.Bold;
+            text.color = category.Color;
+            label.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+
+            GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            plate.name = "Fondo";
+            UnityEngine.Object.DestroyImmediate(plate.GetComponent<Collider>());
+            plate.transform.SetParent(sign.transform, false);
+            plate.transform.localPosition = new Vector3(0f, 0f, 0.02f);
+            plate.transform.localScale = new Vector3(Mathf.Max(1.4f, text.text.Length * 0.22f), 0.5f, 1f);
+            var plateRenderer = plate.GetComponent<MeshRenderer>();
+            plateRenderer.sharedMaterial = _theme.DarkStone;
+            plateRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // Réplica girando del residuo que va en este contenedor
+            GameObject icon = UnityEngine.Object.Instantiate(iconSource, root.transform);
+            icon.name = "Icono";
+            icon.transform.localPosition = new Vector3(0f, 1.25f, 0f);
+            icon.transform.localRotation = iconSource.GetComponent<WasteItem>() != null
+                ? iconSource.GetComponent<WasteItem>().RestRotation
+                : Quaternion.identity;
+            icon.transform.localScale = iconSource.transform.localScale * 1.8f;
+            StripPhysics(icon);
+            icon.AddComponent<Spinner>();
+        }
+
+        /// <summary>Deja solo lo visual: sin scripts de juego, cuerpo rígido ni colisiones.</summary>
+        private static void StripPhysics(GameObject go)
+        {
+            foreach (WasteItem item in go.GetComponentsInChildren<WasteItem>()) UnityEngine.Object.DestroyImmediate(item);
+            foreach (Respawnable respawnable in go.GetComponentsInChildren<Respawnable>()) UnityEngine.Object.DestroyImmediate(respawnable);
+            foreach (Rigidbody body in go.GetComponentsInChildren<Rigidbody>()) UnityEngine.Object.DestroyImmediate(body);
+            foreach (Collider collider in go.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(collider);
+            foreach (Renderer renderer in go.GetComponentsInChildren<Renderer>())
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        private static GameObject Upgrade(GameObject prefab, Action<GameObject> modify)
+        {
+            string path = AssetDatabase.GetAssetPath(prefab);
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                modify(root);
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+            return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        }
+
+        private static T GetOrAdd<T>(GameObject go) where T : Component
+        {
+            T component = go.GetComponent<T>();
+            return component != null ? component : go.AddComponent<T>();
         }
 
         // ------------------------------------------------------------------ utilidades

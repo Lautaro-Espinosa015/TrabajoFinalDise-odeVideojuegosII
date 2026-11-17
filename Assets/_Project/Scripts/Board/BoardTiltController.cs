@@ -4,28 +4,31 @@ using UnityEngine;
 namespace EcoTilt.Board
 {
     /// <summary>
-    /// Inclina el tablero en X y Z según un ITiltInput.
-    /// El tablero es un Rigidbody cinemático movido con MoveRotation en FixedUpdate,
-    /// así los residuos (cuerpos dinámicos) reciben el movimiento de forma físicamente correcta.
+    /// Rota el tablero según un ITiltInput. El tablero es un Rigidbody cinemático movido con MoveRotation
+    /// en FixedUpdate: así los residuos (cuerpos dinámicos) reciben el movimiento de forma físicamente
+    /// correcta, y un giro brusco los lanza por el aire.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public sealed class BoardTiltController : MonoBehaviour
     {
         [Tooltip("Componente que implemente ITiltInput (por ejemplo, TiltInputProvider).")]
         [SerializeField] private MonoBehaviour inputSource;
-        [SerializeField, Range(1f, 30f)] private float maxTiltAngle = 12f;
-        [SerializeField, Range(0.01f, 1f)] private float smoothTime = 0.12f;
-        [Tooltip("Velocidad angular máxima en grados por segundo. Evita que un giro brusco lance los residuos.")]
-        [SerializeField, Min(1f)] private float maxAngularSpeed = 60f;
+        [Tooltip("Suavizado extra del tablero. 0 = sigue al instante (control total).")]
+        [SerializeField, Range(0f, 30f)] private float smoothing = 0f;
+        [Tooltip("Velocidad de giro máxima en grados por segundo. 0 = sin límite. Con 120-200 los giros bruscos " +
+                 "siguen lanzando los residuos, pero el tablero se siente pesado.")]
+        [SerializeField, Min(0f)] private float maxAngularSpeed = 150f;
+        [Tooltip("Al empezar, el tablero pasa de nivelado al control del jugador en este tiempo (segundos).")]
+        [SerializeField, Min(0f)] private float startBlendTime = 1.5f;
 
         private Rigidbody _body;
         private ITiltInput _input;
         private Quaternion _restRotation;
-        private Vector2 _currentAngles;
-        private Vector2 _angularVelocity;
+        private Quaternion _current = Quaternion.identity;
+        private float _elapsed;
 
-        /// <summary>Inclinación actual en grados (x: lateral, y: adelante/atrás).</summary>
-        public Vector2 CurrentAngles => _currentAngles;
+        /// <summary>Inclinación actual respecto de la posición nivelada.</summary>
+        public Quaternion CurrentTilt => _current;
 
         /// <summary>Permite inyectar el input por código (tests, otra escena).</summary>
         public void SetInput(ITiltInput input)
@@ -56,16 +59,20 @@ namespace EcoTilt.Board
 
         private void FixedUpdate()
         {
-            Vector2 target = _input != null
-                ? Vector2.ClampMagnitude(_input.ReadTilt(), 1f) * maxTiltAngle
-                : Vector2.zero;
+            Quaternion target = _input != null ? _input.ReadTilt() : Quaternion.identity;
 
-            _currentAngles = Vector2.SmoothDamp(
-                _currentAngles, target, ref _angularVelocity, smoothTime, maxAngularSpeed, Time.fixedDeltaTime);
+            // Arranque suave: los residuos se asientan antes de que el tablero responda del todo.
+            _elapsed += Time.fixedDeltaTime;
+            if (startBlendTime > 0f && _elapsed < startBlendTime)
+                target = Quaternion.Slerp(Quaternion.identity, target, _elapsed / startBlendTime);
 
-            // Eje X positivo baja el extremo lejano (+Z); eje Z negativo baja el lado derecho (+X).
-            Quaternion tilt = Quaternion.Euler(_currentAngles.y, 0f, -_currentAngles.x);
-            _body.MoveRotation(_restRotation * tilt);
+            if (smoothing > 0f)
+                target = Quaternion.Slerp(_current, target, 1f - Mathf.Exp(-smoothing * Time.fixedDeltaTime));
+            if (maxAngularSpeed > 0f)
+                target = Quaternion.RotateTowards(_current, target, maxAngularSpeed * Time.fixedDeltaTime);
+
+            _current = target;
+            _body.MoveRotation(_restRotation * _current);
         }
     }
 }

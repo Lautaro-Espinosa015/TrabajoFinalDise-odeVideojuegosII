@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using EcoTilt.Level;
 using UnityEngine;
@@ -15,13 +16,18 @@ namespace EcoTilt.Board
         [SerializeField] private BoardLayout layout;
         [SerializeField] private BoardTheme theme;
         [SerializeField] private BoardDimensions dimensions = new BoardDimensions();
-        [Tooltip("Contenedores en orden: plástico, metal, cartón.")]
+        [Tooltip("Contenedores (uno por categoría). En cada mapa se reparten al azar.")]
         [SerializeField] private GameObject[] binPrefabs = new GameObject[0];
+        [Tooltip("Cuántos contenedores van hundidos en callejones del laberinto; el resto queda tras la rampa.")]
+        [SerializeField, Range(0, 2)] private int binsInsideMaze = 1;
         [SerializeField] private Transform spawnPoint;
 
         private readonly List<Mesh> _runtimeMeshes = new List<Mesh>();
 
         public BoardLayout Layout => layout;
+
+        /// <summary>Se dispara cada vez que el tablero se reconstruye (los contenedores son nuevos).</summary>
+        public event Action Rebuilt;
         public Transform SpawnPoint => spawnPoint;
 
         /// <summary>Configura el builder desde código (lo usa el generador de escena del editor).</summary>
@@ -41,12 +47,23 @@ namespace EcoTilt.Board
             var root = new GameObject(GeneratedName).transform;
             root.SetParent(transform, false);
 
-            BoardBuildResult result = new BoardGeometry(grid, layout, dimensions, theme, sink).Build(root);
-            for (int i = 0; i < binPrefabs.Length && i < result.BinSlots.Count; i++)
-                if (binPrefabs[i] != null)
-                    sink.Instantiate(binPrefabs[i], result.BinSlots[i]);
+            var random = new System.Random(Environment.TickCount);
+            BoardBuildResult result = new BoardGeometry(grid, layout, dimensions, theme, sink,
+                                                        binsInsideMaze, binPrefabs.Length, random).Build(root);
+
+            // Orden aleatorio: en cada mapa cambia qué contenedor queda en el laberinto y cuál en cada lado de la rampa.
+            var order = new List<GameObject>(binPrefabs);
+            for (int i = order.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+            for (int i = 0; i < order.Count && i < result.BinSlots.Count; i++)
+                if (order[i] != null)
+                    sink.Instantiate(order[i], result.BinSlots[i]);
 
             spawnPoint = result.SpawnPoint;
+            Rebuilt?.Invoke();
             return result;
         }
 
@@ -55,6 +72,7 @@ namespace EcoTilt.Board
             Transform old = transform.Find(GeneratedName);
             if (old != null)
             {
+                old.SetParent(null); // fuera de la jerarquía ya mismo, aunque se destruya al final del frame
                 if (Application.isPlaying) Destroy(old.gameObject);
                 else DestroyImmediate(old.gameObject);
             }
@@ -82,7 +100,7 @@ namespace EcoTilt.Board
 
             public void OnMeshCreated(Mesh mesh) => _meshes.Add(mesh);
 
-            public GameObject Instantiate(GameObject prefab, Transform parent) => Object.Instantiate(prefab, parent);
+            public GameObject Instantiate(GameObject prefab, Transform parent) => UnityEngine.Object.Instantiate(prefab, parent);
         }
     }
 }

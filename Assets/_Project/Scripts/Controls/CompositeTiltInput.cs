@@ -4,7 +4,7 @@ using UnityEngine;
 namespace EcoTilt.Controls
 {
     /// <summary>
-    /// Combina varias fuentes y devuelve la de mayor magnitud en cada lectura.
+    /// Combina varias fuentes y devuelve la de mayor inclinación en cada lectura.
     /// Agregar una fuente nueva (por ejemplo, un joystick táctil) no requiere modificar esta clase (OCP).
     /// </summary>
     public sealed class CompositeTiltInput : ITiltInput
@@ -16,13 +16,19 @@ namespace EcoTilt.Controls
             _sources = sources;
         }
 
-        public Vector2 ReadTilt()
+        public Quaternion ReadTilt()
         {
-            Vector2 strongest = Vector2.zero;
+            Quaternion strongest = Quaternion.identity;
+            float strongestAngle = 0f;
             for (int i = 0; i < _sources.Count; i++)
             {
-                Vector2 value = _sources[i].ReadTilt();
-                if (value.sqrMagnitude > strongest.sqrMagnitude) strongest = value;
+                Quaternion value = _sources[i].ReadTilt();
+                float angle = Tilt.Magnitude(value);
+                if (angle > strongestAngle)
+                {
+                    strongest = value;
+                    strongestAngle = angle;
+                }
             }
             return strongest;
         }

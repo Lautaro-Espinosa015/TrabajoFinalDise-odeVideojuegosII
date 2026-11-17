@@ -194,6 +194,7 @@ GameObject:
   - component: {fileID: 2236504048330162259}
   - component: {fileID: 9205148654138489594}
   - component: {fileID: 4614418568189773495}
+  - component: {fileID: 8509176827896023759}
   m_Layer: 0
   m_Name: Residuo_Lata
   m_TagString: Untagged
@@ -338,4 +339,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Gameplay.Respawnable
   spawnPoint: {fileID: 0}
+  spawnOffset: {x: 0, y: 0, z: 0}
   respawnDelay: 1
+--- !u!114 &8509176827896023759
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7773027414893786361}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23b9f2bc5ecbd634b83281795eef0e29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Waste.WasteItem
+  category: {fileID: 11400000, guid: 7ff6570c4c6971d4aaa4cab11ed576f8, type: 2}
+  displayName: La lata
+  restEuler: {x: 0, y: 0, z: 90}

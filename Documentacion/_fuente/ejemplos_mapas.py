@@ -35,7 +35,7 @@ def remove_wall(c, d, h, v):
     else: h[x][y] = False
 
 
-def try_generate(rng):
+def try_generate(rng):  # noqa: C901
     h = [[True] * (ROWS + 1) for _ in range(COLS)]
     v = [[True] * ROWS for _ in range(COLS + 1)]
     inside = [[False] * ROWS for _ in range(COLS)]
@@ -96,7 +96,18 @@ def try_generate(rng):
         n = min(HOLES, len(straight))
         for k in range(n):
             holes.add(straight[min(len(straight) - 1, int((k + 0.5) * len(straight) / n))])
-    return dict(h=h, v=v, start=start, goal=goal, holes=holes, path=path)
+    # Contenedores: uno hundido en un callejón fuera del camino correcto, dos tras la rampa; orden aleatorio
+    on_path = set(path)
+    def open_sides(c):
+        return sum(1 for d in DIRS if 0 <= c[0] + d[0] < COLS and 0 <= c[1] + d[1] < ROWS and not has_wall(c, d, h, v))
+    cand = [(x, y) for x in range(COLS) for y in range(ROWS)
+            if (x, y) not in on_path and (x, y) not in holes and abs(x - start[0]) + abs(y - start[1]) >= 3]
+    dead = [c for c in cand if open_sides(c) == 1]
+    pool = dead or cand
+    inner = rng.choice(pool) if pool else None
+    colors = BINS[:]
+    rng.shuffle(colors)
+    return dict(h=h, v=v, start=start, goal=goal, holes=holes, path=path, inner=inner, colors=colors)
 
 
 def generate(rng):
@@ -142,8 +153,13 @@ def draw(ax, m, title):
     ax.add_patch(Rectangle((W / 2 + APRON_LEN, zc - APRON_W / 2 + WALL), RAMP_LEN, APRON_W - 2 * WALL, fc=C_RAMP,
                            ec="black", lw=.4, hatch="//"))
     bx = W / 2 + APRON_LEN + RAMP_LEN + GAP
-    for i, col in enumerate(BINS):
-        ax.add_patch(Rectangle((bx, zc - (i - 1) * BIN_SPACING - BIN_W / 2), BIN_D, BIN_W, fc=col, ec="black", lw=.6))
+    colors = m["colors"]
+    if m["inner"]:
+        ix, iy = m["inner"]
+        size = CELL - 0.1
+        ax.add_patch(Rectangle((cx(ix) - size / 2, cz(iy) - size / 2), size, size, fc=colors[0], ec=C_GLOW, lw=1.4))
+    for i, col in enumerate(colors[1:]):
+        ax.add_patch(Rectangle((bx, zc + (i - 0.5) * BIN_SPACING - BIN_W / 2), BIN_D, BIN_W, fc=col, ec="black", lw=.6))
 
     pts = [(cx(x), cz(y)) for x, y in m["path"]] + [(W / 2 + APRON_LEN + RAMP_LEN, zc)]
     xs, zs = zip(*pts)
@@ -167,7 +183,7 @@ if __name__ == "__main__":
             ax.axis("off"); continue
         m = generate(rng)
         draw(ax, m, f"Mapa {i + 2}  ·  camino de {len(m['path'])} celdas")
-    fig.suptitle("Ejemplos de laberintos generados al perder las 3 vidas", fontsize=13, weight="bold")
+    fig.suptitle("Ejemplos de laberintos generados (nuevo nivel o al perder las 3 vidas)", fontsize=13, weight="bold")
     fig.tight_layout()
     fig.savefig(out, bbox_inches="tight")
     print("ok", out)

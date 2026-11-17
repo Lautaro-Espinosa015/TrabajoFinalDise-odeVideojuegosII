@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b8d621ee1d21964baa614c60e5d4ef3, type: 3}
+  m_Name: Categoria_Carton
+  m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Waste.WasteCategory
+  displayName: "Cart\xF3n y papel"
+  colorName: azul
+  color: {r: 0.22, g: 0.52, b: 1, a: 1}
+  tips:
+  - "Desarm\xE1 las cajas: as\xED entran m\xE1s en el contenedor."
+  - "Manten\xE9 el cart\xF3n seco: mojado o con grasa ya no se puede reciclar."
+  - "Las cajas de pizza con grasa van a la basura com\xFAn."

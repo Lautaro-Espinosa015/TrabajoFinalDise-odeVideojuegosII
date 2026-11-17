@@ -7,6 +7,7 @@ namespace EcoTilt.Board
     public sealed class BoardBuildResult
     {
         public Transform SpawnPoint;
+        /// <summary>Lugares para contenedores: primero los hundidos dentro del laberinto, después los de la rampa.</summary>
         public readonly List<Transform> BinSlots = new List<Transform>();
         /// <summary>Área que ocupa todo el nivel (para encuadrar la cámara).</summary>
         public Bounds Footprint;
@@ -33,9 +34,20 @@ namespace EcoTilt.Board
         private float _length;  // extensión en Z
         private Transform _colliders;
         private System.Random _random;
+        private readonly System.Random _layoutRandom;
+        private readonly int _binsInsideMaze;
+        private readonly int _totalBins;
+        private readonly HashSet<Vector2Int> _binCells = new HashSet<Vector2Int>();
 
-        public BoardGeometry(MazeGrid grid, BoardLayout layout, BoardDimensions size, BoardTheme theme, IBoardBuildSink sink)
+        /// <param name="binsInsideMaze">Cuántos contenedores van hundidos en callejones del laberinto (el resto, tras la rampa).</param>
+        /// <param name="totalBins">Cantidad total de contenedores.</param>
+        /// <param name="layoutRandom">Azar para ubicar los contenedores del laberinto.</param>
+        public BoardGeometry(MazeGrid grid, BoardLayout layout, BoardDimensions size, BoardTheme theme, IBoardBuildSink sink,
+                             int binsInsideMaze, int totalBins, System.Random layoutRandom)
         {
+            _binsInsideMaze = Mathf.Clamp(binsInsideMaze, 0, totalBins);
+            _totalBins = totalBins;
+            _layoutRandom = layoutRandom;
             _grid = grid;
             _cell = layout.CellSize;
             _wall = layout.WallThickness;
@@ -58,10 +70,14 @@ namespace EcoTilt.Board
                 Footprint = new Bounds(Vector3.zero, new Vector3(_width, 1f, _length))
             };
 
+            ChooseBinCells();
+            Transform bins = Group(board, "Contenedores");
+
             BuildFloor();
             BuildHoles();
             BuildWalls();
-            BuildExit(Group(board, "Contenedores"), result);
+            BuildMazeBins(bins, result);
+            BuildExit(bins, result);
             result.SpawnPoint = BuildSpawn(board);
 
             _batch.Bake(Group(board, "Visual"), "Tablero", _sink);
@@ -76,7 +92,7 @@ namespace EcoTilt.Board
             var solid = new bool[gw, gh];
             for (int gy = 0; gy < gh; gy++)
                 for (int gx = 0; gx < gw; gx++)
-                    solid[gx, gy] = !(gx % 2 == 1 && gy % 2 == 1 && _grid.IsHole(gx / 2, gy / 2));
+                    solid[gx, gy] = !(gx % 2 == 1 && gy % 2 == 1 && IsOpenCell(gx / 2, gy / 2));
 
             foreach (RectInt rect in RectMerger.Merge(solid))
             {
@@ -87,8 +103,67 @@ namespace EcoTilt.Board
             float tile = _cell + _wall - _size.TileGap;
             for (int y = 0; y < _grid.Rows; y++)
                 for (int x = 0; x < _grid.Columns; x++)
-                    if (!_grid.IsHole(x, y))
+                    if (!IsOpenCell(x, y))
                         Tile(CellCenter(x, y), new Vector2(tile, tile));
+        }
+
+        /// <summary>Celdas sin piso: pozos y contenedores hundidos.</summary>
+        private bool IsOpenCell(int x, int y) => _grid.IsHole(x, y) || _binCells.Contains(new Vector2Int(x, y));
+
+        // ------------------------------------------------------------------ contenedores dentro del laberinto
+        /// <summary>
+        /// Elige callejones sin salida que no estén en el camino correcto (así no se cae ahí por accidente):
+        /// para llegar hay que desviarse a propósito.
+        /// </summary>
+        private void ChooseBinCells()
+        {
+            _binCells.Clear();
+            if (_binsInsideMaze <= 0) return;
+
+            var path = new HashSet<Vector2Int>(_grid.FindPath(_grid.StartCell, _grid.ExitCell));
+            var deadEnds = new List<Vector2Int>();
+            var others = new List<Vector2Int>();
+            for (int y = 0; y < _grid.Rows; y++)
+                for (int x = 0; x < _grid.Columns; x++)
+                {
+                    var cell = new Vector2Int(x, y);
+                    if (path.Contains(cell) || _grid.IsHole(x, y) || cell == _grid.StartCell) continue;
+                    if (Mathf.Abs(cell.x - _grid.StartCell.x) + Mathf.Abs(cell.y - _grid.StartCell.y) < 3) continue;
+                    if (_grid.OpenSides(cell) == 1) deadEnds.Add(cell);
+                    else others.Add(cell);
+                }
+
+            for (int i = 0; i < _binsInsideMaze; i++)
+            {
+                List<Vector2Int> pool = deadEnds.Count > 0 ? deadEnds : others;
+                if (pool.Count == 0) break;
+                int index = _layoutRandom.Next(pool.Count);
+                _binCells.Add(pool[index]);
+                pool.RemoveAt(index);
+            }
+        }
+
+        private void BuildMazeBins(Transform parent, BoardBuildResult result)
+        {
+            float scale = (_cell - 0.08f) / Mathf.Max(_size.BinWidth, _size.BinDepth);
+            int index = 0;
+            foreach (Vector2Int cell in _binCells)
+            {
+                Vector3 center = CellCenter(cell.x, cell.y);
+                var slot = new GameObject($"Lugar_Laberinto_{index++}").transform;
+                slot.SetParent(parent, false);
+                slot.localPosition = center + Vector3.up * -0.02f;
+                slot.localScale = Vector3.one * scale;
+                result.BinSlots.Add(slot);
+
+                // Marco luminoso alrededor del contenedor hundido
+                float half = _cell * 0.5f;
+                const float line = 0.05f;
+                _batch.AddBox(_theme.Glow, center + new Vector3(0f, 0.005f, half - line * 0.5f), new Vector3(_cell, 0.01f, line));
+                _batch.AddBox(_theme.Glow, center + new Vector3(0f, 0.005f, -half + line * 0.5f), new Vector3(_cell, 0.01f, line));
+                _batch.AddBox(_theme.Glow, center + new Vector3(half - line * 0.5f, 0.005f, 0f), new Vector3(line, 0.01f, _cell));
+                _batch.AddBox(_theme.Glow, center + new Vector3(-half + line * 0.5f, 0.005f, 0f), new Vector3(line, 0.01f, _cell));
+            }
         }
 
         // Pozo más chico que el pasillo: queda un borde de piso alrededor para esquivarlo.
@@ -276,17 +351,18 @@ namespace EcoTilt.Board
 
             // Contenedores (lugares donde se colocan los prefabs)
             float binZ = apron + _size.RampLength + _size.GapLength + _size.BinDepth * 0.5f;
-            for (int i = 0; i < 3; i++)
+            int exitBins = Mathf.Max(1, _totalBins - _binCells.Count);
+            for (int i = 0; i < exitBins; i++)
             {
-                var slot = new GameObject($"Lugar_{i}").transform;
+                var slot = new GameObject($"Lugar_Rampa_{i}").transform;
                 slot.SetParent(binsParent, false);
-                slot.localPosition = Local(new Vector3((i - 1) * _size.BinSpacing, _size.BinRimY, binZ));
+                slot.localPosition = Local(new Vector3((i - (exitBins - 1) * 0.5f) * _size.BinSpacing, _size.BinRimY, binZ));
                 slot.localRotation = frame;
                 result.BinSlots.Add(slot);
             }
 
             // Largueros que unen los contenedores al tablero
-            float outerX = _size.BinSpacing + _size.BinWidth * 0.5f + 0.2f;
+            float outerX = (exitBins - 1) * 0.5f * _size.BinSpacing + _size.BinWidth * 0.5f + 0.2f;
             float startZ = apron - 0.3f;
             float endZ = binZ + _size.BinDepth * 0.5f;
             float beam = endZ - startZ;

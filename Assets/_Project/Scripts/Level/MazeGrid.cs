@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace EcoTilt.Level
@@ -112,6 +113,69 @@ namespace EcoTilt.Level
         {
             ExitSide = side;
             ExitIndex = index;
+        }
+
+        // ------------------------------------------------------------------ navegación por celdas
+        public static readonly Vector2Int[] Directions =
+            { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+
+        public bool Contains(Vector2Int cell) => cell.x >= 0 && cell.y >= 0 && cell.x < Columns && cell.y < Rows;
+
+        /// <summary>True si desde la celda se puede pasar a la vecina en esa dirección (fila mayor = más cerca de la cámara).</summary>
+        public bool IsOpen(Vector2Int cell, Vector2Int dir)
+        {
+            return Contains(cell + dir) && !IsWall(cell.x * 2 + 1 + dir.x, cell.y * 2 + 1 + dir.y);
+        }
+
+        public int OpenSides(Vector2Int cell)
+        {
+            int open = 0;
+            foreach (Vector2Int dir in Directions)
+                if (IsOpen(cell, dir)) open++;
+            return open;
+        }
+
+        /// <summary>Celda del laberinto que da a la salida.</summary>
+        public Vector2Int ExitCell
+        {
+            get
+            {
+                switch (ExitSide)
+                {
+                    case BoardSide.Right: return new Vector2Int(Columns - 1, ExitIndex);
+                    case BoardSide.Left: return new Vector2Int(0, ExitIndex);
+                    case BoardSide.Top: return new Vector2Int(ExitIndex, 0);
+                    case BoardSide.Bottom: return new Vector2Int(ExitIndex, Rows - 1);
+                    default: return StartCell;
+                }
+            }
+        }
+
+        /// <summary>Camino más corto entre dos celdas (vacío si no hay).</summary>
+        public List<Vector2Int> FindPath(Vector2Int from, Vector2Int to)
+        {
+            var previous = new Dictionary<Vector2Int, Vector2Int> { [from] = from };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(from);
+            while (queue.Count > 0)
+            {
+                Vector2Int cell = queue.Dequeue();
+                if (cell == to) break;
+                foreach (Vector2Int dir in Directions)
+                {
+                    Vector2Int next = cell + dir;
+                    if (!IsOpen(cell, dir) || previous.ContainsKey(next)) continue;
+                    previous[next] = cell;
+                    queue.Enqueue(next);
+                }
+            }
+
+            var path = new List<Vector2Int>();
+            if (!previous.ContainsKey(to)) return path;
+            for (Vector2Int c = to; c != from; c = previous[c]) path.Add(c);
+            path.Add(from);
+            path.Reverse();
+            return path;
         }
     }
 }
