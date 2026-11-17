@@ -36,7 +36,7 @@ namespace EcoTilt.UI
             float scale = Screen.height / 720f;
             EnsureStyles(scale);
 
-            var box = new Rect(Screen.width - 430f * scale, 12f * scale, 418f * scale, 130f * scale);
+            var box = new Rect(Screen.width - 430f * scale, Screen.height - 200f * scale, 418f * scale, 130f * scale);
             GUI.Box(box, GUIContent.none);
             GUI.Label(new Rect(box.x + 10f * scale, box.y + 6f * scale, box.width - 20f * scale, box.height),
                       _diagnostics.Diagnostics, _style);

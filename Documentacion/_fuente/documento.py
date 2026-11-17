@@ -13,7 +13,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, Cm, RGBColor
 
-VERSION = "v0.2 — 15/11/2026"
+VERSION = "v0.7 — 16/11/2026"
 # Laberinto diseñado (igual que BoardLayout.DefaultMap en Unity)
 MAZE_TEXT = """+-+-+-+-+-+-+-+-+
 |     |         |
@@ -334,9 +334,10 @@ INDICE = [
     ("2.", "Descripción rápida del nivel", ["2.1 Concepto de juego", "2.2 Premisa narrativa",
                                             "2.3 Serious Game y Triple Impacto", "2.4 Público objetivo y plataforma"]),
     ("3.", "Descripción de personajes", []),
-    ("4.", "Controles", ["4.1 Esquema de interacción", "4.2 Procesamiento del sensor"]),
+    ("4.", "Controles", ["4.1 Esquema de interacción", "4.2 Procesamiento del sensor",
+                         "4.3 Jugar en cualquier posición"]),
     ("5.", "Objetivos, retos y reglas", ["5.1 Condición de victoria y derrota", "5.2 Reglas",
-                                         "5.3 Vidas y regeneración del laberinto", "5.4 Obstáculos y retos",
+                                         "5.3 Vidas, niveles y laberintos nuevos", "5.4 Obstáculos y retos",
                                          "5.5 Ciclo de juego"]),
     ("6.", "Mecánicas principales", []),
     ("7.", "Boceto / Layout del nivel", ["7.1 Vista superior y flujo del jugador", "7.2 Zonas del nivel",
@@ -387,9 +388,11 @@ table(["Característica", "Descripción"], [
     ["Ambientación", "Tablero de piedra suspendido en el aire, con barandas y acentos luminosos. Estilo "
                      "*low poly*."],
     ["Personajes", "**Botella PET**, **Lata** y **Caja de cartón** (los residuos a clasificar)."],
-    ["Mecánica principal", "Inclinar el tablero en los ejes X y Z para guiar el residuo por el laberinto y "
-                           "dosificar el impulso del salto final."],
-    ["Objetivo principal", "Separar correctamente **6 residuos** antes de que pasen **3 minutos**."],
+    ["Mecánica principal", "El tablero es el teléfono: copia su orientación (hasta 90°, giros de hasta "
+                           "150°/s). Se inclina para guiar el residuo y dosificar el salto final; un giro "
+                           "brusco hace volar los objetos."],
+    ["Objetivo principal", "Separar los **6 residuos** de cada nivel y avanzar la mayor cantidad de niveles "
+                           "posible en **3 minutos**."],
 ], [4.2, 12.3])
 
 h2("2.2 Premisa narrativa")
@@ -440,51 +443,94 @@ para("*Los colores de los contenedores se eligieron para el prototipo y pueden a
 h1("4. Controles")
 h2("4.1 Esquema de interacción")
 table(["Acción", "Android (sensores)", "PC / Editor"], [
-    ["Inclinar adelante / atrás", "Inclinar el teléfono (en horizontal) alejando o acercando el borde superior",
-     "W / S, ↑ / ↓ o click + mouse"],
-    ["Inclinar izquierda / derecha", "Inclinar el teléfono hacia los costados", "A / D, ← / → o click + mouse"],
-    ["Recalibrar", "Botón «Calibrar»: toma la posición actual del teléfono como horizontal", "—"],
+    ["Inclinar el tablero", "El tablero copia la orientación del teléfono: el mismo ángulo (hasta 90°), "
+                            "con giros de hasta 150°/s", "W A S D / flechas (hasta 25°) o "
+                                                         "click derecho + mouse (hasta 45°)"],
+    ["Recalibrar", "Automático al empezar y al dar vuelta el teléfono; además, si el juego detecta un cambio "
+                   "de postura ofrece un botón «Recalibrar»", "Tecla C"],
     ["Sacudón", "Agitar el teléfono: da un pequeño impulso al residuo si queda trabado (espera de 3 s)",
      "Barra espaciadora"],
-    ["Pausa", "Botón en pantalla", "Esc"],
+    ["Pausa", "Botón «II» en pantalla o botón Atrás del teléfono. Al continuar, recalibra", "Esc o P"],
 ], [4.2, 7.6, 4.7])
 
-h2("4.2 Procesamiento del sensor")
+h2("4.2 Procesamiento del sensor: el tablero como espejo del teléfono")
 bullets([
     "Se lee el **vector de gravedad** del sensor de gravedad de Android, que el sistema calcula fusionando el "
-    "**acelerómetro** con el **giroscopio**; así se filtran las vibraciones de la mano. Si el equipo no tiene "
-    "ese sensor se usa el acelerómetro con un filtro paso bajo.",
-    "Con ese vector se calculan dos ángulos: **inclinación lateral** (roll) e **inclinación frontal** (pitch).",
-    "**Calibración:** la posición en la que se sostiene el teléfono al empezar se toma como neutra, así se "
-    "puede jugar sentado, parado o con el teléfono apoyado.",
-    "Una inclinación del teléfono de **20°** equivale a la inclinación máxima del tablero (**12°**). Hay una "
-    "zona muerta de 5 % para que el tablero no tiemble.",
-    "El tablero sigue ese valor con suavizado y una velocidad máxima de **60°/s**, para que un movimiento "
-    "brusco no lance los residuos fuera.",
+    "**acelerómetro** con el **giroscopio**; si el equipo no tiene ese sensor se usa el acelerómetro.",
+    "Ese vector se pasa a los ejes del tablero y se calcula la **rotación exacta** que tiene que tener el "
+    "tablero para «sentir» la misma gravedad que el teléfono. Se trabaja con vectores y cuaterniones, no con "
+    "ángulos sueltos, así que funciona con cualquier inclinación, **incluso 90°**.",
+    "**Calibración:** al empezar, la posición en la que el jugador deja quieto el teléfono se toma como "
+    "horizontal (ver 4.3). Mientras tanto el tablero queda nivelado.",
+    "**Arranque suave:** durante el primer segundo y medio el tablero pasa gradualmente de nivelado al "
+    "control del jugador, para que los residuos se asienten.",
+    "**Filtro y zona muerta:** un filtro leve y una zona muerta de 2° absorben el temblor de la mano sin que "
+    "el control se sienta lento.",
+    "**Velocidad de giro de hasta 150°/s:** alcanza para que un movimiento brusco lance los residuos, pero el "
+    "tablero se siente pesado y no salta con cualquier movimiento involuntario.",
+    "**Peso de los residuos:** el tablero mide 16 m y los residuos 30 cm; con la gravedad real todo parece "
+    "flotar. Se usa una gravedad 2,2 veces mayor y algo de rozamiento con el aire, así ruedan y caen con peso.",
+    "**Física preparada para giros bruscos:** 100 pasos de física por segundo, más iteraciones del solver, "
+    "piso de colisión más grueso y separación suave de objetos encimados (sin rebotes explosivos).",
+    "Todos estos valores se ajustan desde el Inspector. Un **panel de diagnóstico** muestra el sensor, la "
+    "gravedad medida y el ángulo del tablero, útil para probar con Unity Remote.",
 ])
+
+h2("4.3 Jugar en cualquier posición")
+para("El jugador no siempre empieza con el teléfono acostado: puede estar sentado, en la cama o caminando. "
+     "Por eso la inclinación del tablero es **relativa a la posición inicial** del teléfono, no a la mesa. "
+     "Estas son las situaciones contempladas:")
+table(["Situación", "Qué hace el juego"], [
+    ["Empieza mientras todavía se acomoda", "Muestra «Sostené el teléfono como vas a jugar y dejalo quieto un "
+                                            "momento» con una barra de progreso. Recién cuando el teléfono queda "
+                                            "quieto 0,8 s toma esa posición como horizontal. Si nunca queda "
+                                            "quieto, a los 6 s calibra igual."],
+    ["Acostado en la cama, teléfono boca abajo", "La cuenta de la rotación está preparada para ese caso (vectores "
+                                                 "opuestos), así que los ejes no se invierten."],
+    ["Cambia de postura en plena partida", "Si el tablero queda muy inclinado (más de 50°) y quieto 3 s, aparece "
+                                           "el botón «¿Cambiaste de posición? Tocá acá para recalibrar»."],
+    ["Da vuelta el teléfono 180°", "La imagen gira (horizontal en ambos sentidos) y el juego recalibra solo."],
+    ["Recalibrar en medio de la partida", "Los residuos que están sobre el tablero quedan **pegados** a él "
+                                          "mientras se calibra y se sueltan, quietos, al terminar. El tablero "
+                                          "vuelve a nivelarse sin lanzarlos."],
+    ["Vuelve de la pausa", "Recalibra (con los residuos pegados), por si cambió de posición durante la pausa."],
+], [5.0, 11.5])
 
 # ---------------------------------------------------------------- 5
 h1("5. Objetivos, retos y reglas")
 h2("5.1 Condición de victoria y derrota")
 table(["Resultado", "Condición"], [
-    ["Victoria", "Separar correctamente **6 residuos** antes de que el reloj llegue a 0:00."],
-    ["Derrota", "Se terminan los **3 minutos** sin alcanzar la meta."],
+    ["Nivel superado", "Separar los **6 residuos** del nivel: se recargan las vidas, aparece la felicitación y "
+                       "se arma un laberinto nuevo (siguiente nivel)."],
+    ["Fin de la partida", "Se terminan los **3 minutos**: el resultado es el nivel alcanzado y el puntaje."],
 ], [4.2, 12.3])
 h2("5.2 Reglas")
 bullets([
-    "Los residuos caen **de a uno** desde arriba sobre el punto de inicio; el tipo es aleatorio.",
-    "**Contenedor correcto:** +100 puntos, suma 1 a la meta y aparece un consejo de reciclaje.",
-    "**Contenedor incorrecto:** −50 puntos, no suma a la meta y se muestra a qué contenedor iba.",
+    "Cada nivel trae **6 residuos**; hay **hasta 3 a la vez** sobre el tablero y, cada vez que uno se separa, "
+    "cae otro de tipo aleatorio en el inicio.",
+    "**Contenedor correcto:** el residuo se acomoda en el fondo y queda pegado; +100 puntos, **devuelve una "
+    "vida** (si no están completas) y aparece una felicitación con un consejo de reciclaje.",
+    "**Contenedor incorrecto:** el residuo vuela solo al contenedor que le corresponde; −50 puntos y un aviso "
+    "recuerda dónde va (nombre y color del contenedor). Igual cuenta como separado para el nivel.",
+    "**Cada contenedor tiene un cartel** con su nombre (siempre mirando a la cámara) y una réplica girando del "
+    "residuo que va ahí, para que se distinga de un vistazo.",
     "Si el residuo cae fuera del tablero (pozos, bordes o el vacío del salto), **reaparece en el punto de "
     "inicio después de 1 segundo** y se **pierde una vida**.",
-    "Cuando un residuo entra en cualquier contenedor, cae el siguiente.",
+    "**Pausa:** detiene el juego y recuerda qué va en cada contenedor. Si la app pasa a segundo plano (una "
+    "llamada, por ejemplo), se pausa sola.",
 ])
-h2("5.3 Vidas y regeneración del laberinto")
+h2("5.3 Vidas, niveles y laberintos nuevos")
 para("El jugador tiene **3 vidas**. Cada caída fuera del tablero resta una (no tienen que ser simultáneas: "
-     "cuentan a lo largo de la partida). Al perder la tercera aparece el aviso «¡Sin vidas! Armando un "
-     "laberinto nuevo...»: el tablero se reconstruye con un **laberinto distinto**, los residuos vuelven al "
-     "inicio y las vidas se recargan. La primera partida usa el laberinto diseñado (sección 7); los siguientes "
-     "se generan al azar, así que no se puede memorizar el recorrido.")
+     "cuentan a lo largo de la partida) y cada residuo en su contenedor correcto devuelve una.")
+table(["Situación", "Qué pasa"], [
+    ["Pierde las 3 vidas", "Aviso «¡Sin vidas! Armando un laberinto nuevo...»: el tablero se reconstruye con un "
+                           "**laberinto distinto**, los residuos vuelven al inicio, las vidas se recargan y el "
+                           "**nivel se repite** desde cero."],
+    ["Separa los 6 residuos", "Felicitación «¡Nivel N completado!» (o «¡Perfecto!» si fueron todos correctos), "
+                              "vidas completas y **laberinto nuevo**: empieza el **nivel siguiente**."],
+], [4.2, 12.3])
+para("El primer nivel usa el laberinto diseñado (sección 7); los siguientes se generan al azar, así que no se "
+     "puede memorizar el recorrido.")
 table(["Regla del generador", "Valor"], [
     ["Tamaño", "8 × 8 pasillos de 1,7 m, paredes de 0,25 m (igual que el diseñado)."],
     ["Algoritmo", "Prim aleatorio: muchos callejones cortos, como un laberinto dibujado a mano."],
@@ -492,6 +538,9 @@ table(["Regla del generador", "Valor"], [
     ["Dificultad mínima", "El camino correcto mide al menos **18 celdas**."],
     ["Pozos", "**3 pozos** repartidos sobre tramos rectos del camino correcto."],
     ["Atajos", "Se abre un 3 % extra de paredes para que aparezca algún atajo."],
+    ["Contenedores", "**Uno hundido** en un callejón sin salida que no esté en el camino correcto (hay que "
+                     "desviarse a propósito para llegar) y **dos tras la rampa**. En cada mapa se sortea qué "
+                     "categoría va en cada lugar."],
 ], [4.2, 12.3])
 h2("5.4 Obstáculos y retos")
 bullets([
@@ -513,19 +562,26 @@ para("Cae un residuo → el jugador identifica su material → lo guía por el l
 # ---------------------------------------------------------------- 6
 h1("6. Mecánicas principales")
 table(["Mecánica", "Qué hace el jugador", "Impacto en el estado del juego"], [
-    ["Inclinación del tablero", "Inclina el teléfono en dos ejes", "Cambia la dirección de la gravedad "
-                                                                   "relativa: todo lo que está sobre el "
-                                                                   "tablero acelera hacia el lado bajo."],
+    ["Inclinación del tablero", "Mueve el teléfono: el tablero copia su orientación (hasta 90°)",
+     "Cambia la dirección de la gravedad relativa: todo lo que está sobre el tablero acelera hacia el lado bajo."],
+    ["Giro brusco", "Gira el teléfono de golpe", "El tablero gira rápido (hasta 150°/s) y lanza los residuos "
+                                                 "por el aire; pueden saltar barandas o salir del tablero."],
     ["Física de residuos", "—", "Cada residuo es un cuerpo rígido con masa, fricción y rebote propios "
                                 "(rueda o desliza) y choca contra las barandas."],
     ["Esquivar pozos", "Pasa por el borde del pozo", "Si cae: reaparece a 1 s y pierde una vida."],
     ["Salto con impulso", "Regula la velocidad al llegar a la rampa", "La velocidad define el alcance: "
                                                                        "vacío, contenedor o de largo."],
     ["Clasificación", "Elige a qué contenedor saltar", "El contenedor detecta el residuo y compara su "
-                                                       "categoría: suma o resta puntos y muestra un consejo."],
-    ["Vidas", "—", "3 vidas; al perderlas se genera un laberinto nuevo y se recargan."],
+                                                       "categoría. Si es correcto queda pegado y suma; si no, "
+                                                       "vuela al contenedor correcto, resta y se explica por qué."],
+    ["Vidas", "—", "3 vidas: cada caída resta una y cada acierto devuelve una. Al perderlas se genera un "
+                   "laberinto nuevo y se repite el nivel."],
+    ["Niveles", "Separa los 6 residuos del nivel", "Vidas completas, felicitación y laberinto nuevo."],
+    ["Contenedor hundido", "Desvía el residuo hasta el callejón", "El residuo cae dentro sin necesidad de saltar."],
     ["Sacudón", "Agita el teléfono", "Pequeño impulso vertical para destrabar un residuo; tiene espera."],
-    ["Calibración", "Toca «Calibrar»", "Redefine la posición neutra del teléfono."],
+    ["Calibración", "Deja quieto el teléfono", "Redefine la posición neutra. Mientras dura, los residuos quedan "
+                                               "pegados al tablero para no salir despedidos."],
+    ["Pausa", "Toca «II» o el botón Atrás", "Detiene el juego; al continuar recalibra con los residuos pegados."],
 ], [3.6, 4.4, 8.5])
 
 # ---------------------------------------------------------------- 7
@@ -544,18 +600,21 @@ table(["Zona", "Descripción"], [
     ["3. Bajada central", "Recorrido largo hacia abajo por la izquierda, con el segundo pozo."],
     ["4. Tramo final", "Zigzag por la parte inferior y recta hacia la salida, con el tercer pozo."],
     ["5. Explanada", "6,4 × 2,2 m con barandas laterales, para acomodar el residuo antes del salto."],
-    ["6. Rampa y meta", "Rampa de 1,6 m (sube 0,4 m), vacío de 1,1 m y tres contenedores de 1,8 × 1,8 m: "
-                        "Plástico, Metal y Cartón."],
+    ["6. Rampa y meta", "Rampa de 1,6 m (sube 0,4 m), vacío de 1,1 m y dos contenedores de 1,8 × 1,8 m."],
+    ["7. Contenedor hundido", "El tercer contenedor está hundido en un callejón del laberinto, con marco "
+                              "luminoso. Su ubicación y qué categoría va en cada lugar se sortean en cada mapa "
+                              "(la Figura 1 muestra la disposición original de los tres al final)."],
 ], [3.4, 13.1])
 h2("7.3 Salto final")
 figure(IMG / "layout_lateral.png", 15.5, "Figura 2. Vista lateral del salto: la velocidad con la que el "
                                          "residuo sale de la rampa define dónde cae.")
 h2("7.4 Laberintos generados")
-para("Al perder las 3 vidas el juego genera un laberinto nuevo con las reglas de la sección 5.3. La figura "
-     "muestra seis ejemplos producidos por el mismo algoritmo: todos mantienen el estilo del diseño original, "
-     "pero el recorrido, la posición del inicio, de la salida y de los pozos cambian cada vez.")
+para("Al pasar de nivel o al perder las 3 vidas el juego genera un laberinto nuevo con las reglas de la "
+     "sección 5.3. La figura muestra seis ejemplos producidos por el mismo algoritmo: todos mantienen el estilo "
+     "del diseño original, pero el recorrido, el inicio, la salida, los pozos y los contenedores cambian cada vez.")
 figure(IMG / "ejemplos_mapas.png", 17.0, "Figura 3. Seis laberintos de ejemplo. La línea punteada es el camino "
-                                         "correcto; los recuadros naranjas son el inicio y los pozos.")
+                                         "correcto; los recuadros naranjas son el inicio y los pozos; los "
+                                         "cuadrados de color son los contenedores (uno hundido en un callejón).")
 
 # ---------------------------------------------------------------- 8
 h1("8. Progresión de partida (3 minutos)")
@@ -590,8 +649,8 @@ h2("10.1 Herramientas")
 bullets([
     "**Motor:** Unity 6 (6000.3.23f1) con Universal Render Pipeline.",
     "**Entrada:** Input System 1.20 — GravitySensor, Accelerometer, teclado y mouse.",
-    "**Física:** PhysX de Unity; el tablero es un Rigidbody cinemático rotado en FixedUpdate y los residuos "
-    "son cuerpos dinámicos con detección de colisión continua.",
+    "**Física:** PhysX de Unity a 100 pasos por segundo; el tablero es un Rigidbody cinemático rotado en "
+    "FixedUpdate y los residuos son cuerpos dinámicos con detección de colisión continua.",
     "**Rendimiento:** las cientos de piezas del tablero (baldosas, barrotes) se combinan en pocas mallas, una "
     "por material, para dibujarlas con pocas llamadas en Android.",
     "**Programación:** C#, organizado en dos ensamblados (EcoTilt.Runtime y EcoTilt.Editor).",
@@ -603,12 +662,26 @@ para("El código sigue los principios SOLID. Cada clase tiene una sola responsab
      "comunican por interfaces y eventos: el tablero no sabe de dónde viene la inclinación, el contador de "
      "vidas no sabe qué pasa al perderlas y el constructor del tablero no sabe si está en el editor o en el juego.")
 table(["Clase / interfaz", "Responsabilidad", "Principio aplicado"], [
-    ["ITiltInput", "Contrato: devolver una inclinación normalizada (x, y).", "Inversión de dependencias (D)"],
+    ["ITiltInput", "Contrato: devolver la rotación del tablero (cuaternión).", "Inversión de dependencias (D)"],
     ["Keyboard / Mouse / SensorTiltInput", "Cada una lee un único dispositivo.", "S, sustitución (L)"],
     ["CompositeTiltInput", "Combina varias fuentes; se agregan nuevas sin modificarla.", "Abierto/cerrado (O)"],
     ["ICalibratable", "Interfaz aparte para lo que se puede calibrar.", "Segregación de interfaces (I)"],
     ["TiltInputProvider", "Único lugar que arma las fuentes concretas.", "Composición, D"],
     ["BoardTiltController", "Solo rota el tablero a partir de un ITiltInput.", "S, D"],
+    ["ITiltDiagnostics / TiltDebugOverlay", "Describir y mostrar el estado del sensor.", "I, S"],
+    ["ITiltStatus / CalibrationPrompt", "Avisar al jugador cuándo calibrar y ofrecer recalibrar.", "I, S"],
+    ["StickDuringCalibration", "Pegar los residuos al tablero mientras se calibra.", "S"],
+    ["WasteCategory", "Categoría de reciclaje (nombre, color, consejos) como dato editable.", "O"],
+    ["WasteItem", "Residuo: categoría, nombre y si ya fue separado.", "S"],
+    ["RecyclingBin", "Detectar lo que entra y guardar los residuos pegados al fondo.", "S"],
+    ["RecyclingCenter", "Reglas: acomodar si es correcto, llevar al contenedor correcto si no.", "S, D"],
+    ["ScoreKeeper", "Puntaje, aciertos, errores y meta.", "S"],
+    ["WasteSpawner", "Mantener hasta 3 residuos en juego y reponerlos hasta completar el nivel.", "S"],
+    ["LevelProgress", "Niveles: vida por acierto, nivel completado y paso al siguiente.", "S, D"],
+    ["FaceCamera / Spinner", "Carteles que miran a la cámara / réplicas que giran sobre los contenedores.", "S"],
+    ["PauseController / PauseMenu", "Pausar y reanudar / mostrar el menú de pausa.", "S"],
+    ["FeedbackBanner", "Felicitar o recordar dónde va cada residuo.", "S"],
+    ["PhysicsQuality", "Ajustes globales de física para giros bruscos.", "S"],
     ["MazeGrid", "Lee el laberinto dibujado en texto.", "S"],
     ["MazeGenerator", "Genera laberintos aleatorios en ese mismo formato.", "S, O"],
     ["BoardLayout", "Datos del laberinto diseñado y sus medidas, editables sin código.", "O"],
@@ -645,9 +718,21 @@ table(["Hito", "Contenido", "Estado"], [
     ["1.2", "Laberinto 8 × 8 de paredes finas, pozos esquivables, explanada, cámara cenital y orientación "
             "horizontal.", "Implementado"],
     ["1.3", "3 vidas y laberinto aleatorio al perderlas (construcción del tablero en tiempo de juego).",
-     "Implementado — en prueba"],
-    ["2", "Residuos como datos, contenedores que validan el material, aparición de residuos y puntaje.",
-     "Pendiente"],
+     "Implementado"],
+    ["1.4", "Prueba en teléfono con Unity Remote (corrección: sensores que se conectan tarde) y control "
+            "total: el tablero copia la orientación del teléfono 1:1, hasta 90° y sin límite de velocidad.",
+     "Implementado"],
+    ["1.5", "Ajuste del control tras la prueba: calibración promediada, arranque suave, filtro y zona muerta, "
+            "giro de hasta 150°/s, gravedad ×2,2 para dar peso y mouse con click derecho.",
+     "Implementado"],
+    ["1.6", "Jugar en cualquier posición: calibración al quedar quieto, caso boca abajo, aviso de cambio de "
+            "postura y recalibración al dar vuelta el teléfono.", "Implementado"],
+    ["2", "Residuos como datos, contenedores que validan el material (pegado si es correcto, reubicación si no), "
+          "mensajes de felicitación y recordatorio, aparición de residuos, puntaje, pausa y residuos pegados "
+          "al tablero durante la calibración.", "Implementado"],
+    ["2.1", "Carteles y réplicas giratorias sobre los contenedores; un contenedor hundido en un callejón y dos "
+            "tras la rampa, en orden aleatorio; +1 vida por acierto; niveles de 6 residuos con felicitación, "
+            "vidas completas y laberinto nuevo.", "Implementado — en prueba"],
     ["3", "Partida completa: reloj de 3 min, interfaz final, calibración, sacudón y consejos.", "Pendiente"],
     ["4", "Estética final y audio.", "Pendiente"],
     ["5", "Compilación para Android, ajuste de sensibilidad y balanceo.", "Pendiente"],

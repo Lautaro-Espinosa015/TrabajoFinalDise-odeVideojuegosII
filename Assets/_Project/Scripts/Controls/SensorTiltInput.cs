@@ -4,92 +4,174 @@ using UnityEngine.InputSystem;
 namespace EcoTilt.Controls
 {
     /// <summary>
-    /// Inclinación a partir de la dirección de la gravedad medida por el teléfono.
-    /// Usa el GravitySensor (fusión de acelerómetro + giroscopio en Android) y, si el equipo
-    /// no lo tiene, cae al acelerómetro con un filtro paso bajo.
-    /// Los sensores se buscan y activan en cada lectura: con Unity Remote aparecen recién
-    /// cuando el teléfono se conecta, un momento después de entrar en Play.
-    /// La posición en la que el jugador sostiene el teléfono al empezar se toma como neutra.
+    /// El tablero como espejo del teléfono: toma la dirección de la gravedad medida por el teléfono
+    /// (GravitySensor = acelerómetro + giroscopio fusionados en Android; si no existe, acelerómetro)
+    /// y calcula la rotación que tiene que tener el tablero para "sentir" la misma gravedad.
+    ///
+    /// La inclinación es RELATIVA a la posición en la que el jugador sostiene el teléfono al calibrar:
+    /// acostado, sentado, en la cama o boca abajo, esa posición pasa a ser "tablero horizontal".
+    /// La calibración espera a que el teléfono esté quieto, para no tomar una posición de paso.
     /// </summary>
-    public sealed class SensorTiltInput : ITiltInput, ICalibratable, ITiltDiagnostics
+    public sealed class SensorTiltInput : ITiltInput, ICalibratable, ITiltDiagnostics, ITiltStatus
     {
         public struct Settings
         {
-            public float DeviceTiltForFullInput; // grados de inclinación física que equivalen a 1
-            public float Responsiveness;         // cuanto mayor, menos suavizado
+            /// <summary>Ángulo máximo del tablero, en grados.</summary>
+            public float MaxAngle;
+            /// <summary>1 = espejo exacto. Más de 1 exagera los movimientos, menos de 1 los suaviza.</summary>
+            public float Sensitivity;
+            /// <summary>Filtro de las lecturas. 0 = sin filtro; 5-10 absorbe el temblor de la mano.</summary>
+            public float Smoothing;
+            /// <summary>Inclinaciones menores a este ángulo (grados) se ignoran.</summary>
             public float DeadZone;
+            /// <summary>Segundos que el teléfono tiene que estar quieto para calibrar.</summary>
+            public float CalibrationTime;
+            /// <summary>Cuánto puede moverse (grados) y seguir considerándose "quieto" al calibrar.</summary>
+            public float CalibrationTolerance;
+            /// <summary>Si en este tiempo (segundos) nunca queda quieto, se calibra igual con la última posición.</summary>
+            public float CalibrationTimeout;
             public bool InvertX;
             public bool InvertY;
             public bool CalibrateOnFirstSample;
         }
 
         private readonly Settings _settings;
-        private Vector3 _filteredGravity;
+        private Vector3 _filtered;
         private Vector3 _lastRaw;
-        private Vector2 _lastTilt;
+        private Quaternion _lastTilt = Quaternion.identity;
+        private Quaternion _neutral = Quaternion.identity;
         private string _source = "ninguno";
         private bool _hasSample;
-        private bool _pendingCalibration;
-        private float _neutralRoll;
-        private float _neutralPitch;
+
+        private bool _calibrating;
+        private Vector3 _calibrationAnchor;
+        private Vector3 _calibrationSum;
+        private float _stableTime;
+        private float _calibrationElapsed;
 
         public SensorTiltInput(Settings settings)
         {
             _settings = settings;
-            _pendingCalibration = settings.CalibrateOnFirstSample;
+            if (settings.CalibrateOnFirstSample) Calibrate();
         }
 
-        public string Diagnostics =>
-            $"Sensor: {_source}\n" +
-            $"Gravedad: ({_lastRaw.x:0.00}, {_lastRaw.y:0.00}, {_lastRaw.z:0.00})\n" +
-            $"Inclinación: ({_lastTilt.x:0.00}, {_lastTilt.y:0.00})";
+        /// <summary>True si el teléfono ya mandó datos (en la PC sin teléfono queda en false).</summary>
+        public bool HasData => _hasSample;
 
+        /// <summary>True mientras se espera que el teléfono quede quieto para calibrar (el tablero queda nivelado).</summary>
+        public bool IsCalibrating => _calibrating;
+
+        /// <summary>Progreso de la calibración (0 a 1).</summary>
+        public float CalibrationProgress =>
+            _calibrating ? Mathf.Clamp01(_stableTime / Mathf.Max(0.01f, _settings.CalibrationTime)) : 1f;
+
+        public Quaternion LastTilt => _lastTilt;
+
+        public string Diagnostics
+        {
+            get
+            {
+                Vector3 e = _lastTilt.eulerAngles;
+                return $"Sensor: {_source}{(_calibrating ? "  [calibrando...]" : string.Empty)}\n" +
+                       $"Gravedad: ({_lastRaw.x:0.00}, {_lastRaw.y:0.00}, {_lastRaw.z:0.00})\n" +
+                       $"Tablero: {Tilt.Magnitude(_lastTilt):0}°  (X {Mathf.DeltaAngle(0f, e.x):0}°, Z {Mathf.DeltaAngle(0f, e.z):0}°)";
+            }
+        }
+
+        /// <summary>
+        /// Toma como "tablero horizontal" la posición en la que quede quieto el teléfono.
+        /// Mientras tanto el tablero queda nivelado.
+        /// </summary>
         public void Calibrate()
         {
-            if (!_hasSample)
-            {
-                _pendingCalibration = true;
-                return;
-            }
-
-            GetAngles(_filteredGravity, out _neutralRoll, out _neutralPitch);
-            _pendingCalibration = false;
+            _calibrating = true;
+            _stableTime = 0f;
+            _calibrationElapsed = 0f;
+            _calibrationSum = Vector3.zero;
+            _calibrationAnchor = Vector3.zero;
         }
 
-        public Vector2 ReadTilt()
+        public Quaternion ReadTilt()
         {
-            if (!TryReadGravity(out Vector3 raw))
-            {
-                _lastTilt = Vector2.zero;
-                return Vector2.zero;
-            }
+            if (!TryReadGravity(out Vector3 raw)) return _lastTilt = Quaternion.identity;
 
             _lastRaw = raw;
-            float alpha = 1f - Mathf.Exp(-_settings.Responsiveness * Time.unscaledDeltaTime);
-            _filteredGravity = _hasSample ? Vector3.Lerp(_filteredGravity, raw, alpha) : raw;
             _hasSample = true;
 
-            if (_pendingCalibration) Calibrate();
+            if (_calibrating)
+            {
+                UpdateCalibration(raw.normalized);
+                if (_calibrating) return _lastTilt = Quaternion.identity;
+            }
 
-            GetAngles(_filteredGravity, out float roll, out float pitch);
-            float range = Mathf.Max(1f, _settings.DeviceTiltForFullInput);
-            Vector2 tilt = new Vector2(
-                Mathf.DeltaAngle(_neutralRoll, roll) / range,
-                Mathf.DeltaAngle(_neutralPitch, pitch) / range);
+            if (_settings.Smoothing > 0f)
+                _filtered = Vector3.Lerp(_filtered, raw, 1f - Mathf.Exp(-_settings.Smoothing * Time.deltaTime));
+            else
+                _filtered = raw;
 
-            if (_settings.InvertX) tilt.x = -tilt.x;
-            if (_settings.InvertY) tilt.y = -tilt.y;
+            // Gravedad vista desde el tablero = gravedad vista desde el teléfono (respecto de la posición neutra).
+            Vector3 felt = _neutral * ToBoardAxes(_filtered.normalized);
+            Quaternion tilt = SafeFromTo(felt, Vector3.down);
 
-            tilt = Vector2.ClampMagnitude(tilt, 1f);
-            _lastTilt = tilt.magnitude < _settings.DeadZone ? Vector2.zero : tilt;
+            float angle = Tilt.Magnitude(tilt);
+            if (angle <= _settings.DeadZone) return _lastTilt = Quaternion.identity;
+            float effective = (angle - _settings.DeadZone) * _settings.Sensitivity;
+            tilt = Quaternion.SlerpUnclamped(Quaternion.identity, tilt, effective / angle);
+
+            _lastTilt = Tilt.Clamp(tilt, _settings.MaxAngle);
             return _lastTilt;
         }
 
-        // Roll: inclinación lateral. Pitch: borde superior del teléfono hacia abajo = positivo.
-        private static void GetAngles(Vector3 gravity, out float roll, out float pitch)
+        /// <summary>Espera a que el teléfono esté quieto y promedia esa posición.</summary>
+        private void UpdateCalibration(Vector3 gravity)
         {
-            roll = Mathf.Atan2(gravity.x, -gravity.z) * Mathf.Rad2Deg;
-            pitch = Mathf.Atan2(gravity.y, -gravity.z) * Mathf.Rad2Deg;
+            float dt = Time.deltaTime;
+            _calibrationElapsed += dt;
+
+            bool steady = _calibrationAnchor != Vector3.zero &&
+                          Vector3.Angle(_calibrationAnchor, gravity) <= _settings.CalibrationTolerance;
+            if (steady)
+            {
+                _stableTime += dt;
+                _calibrationSum += gravity;
+            }
+            else
+            {
+                // Se movió: arranca de nuevo desde la posición actual.
+                _calibrationAnchor = gravity;
+                _calibrationSum = gravity;
+                _stableTime = 0f;
+            }
+
+            bool done = _stableTime >= _settings.CalibrationTime;
+            bool timedOut = _settings.CalibrationTimeout > 0f && _calibrationElapsed >= _settings.CalibrationTimeout;
+            if (!done && !timedOut) return;
+
+            _neutral = SafeFromTo(ToBoardAxes(_calibrationSum.normalized), Vector3.down);
+            _filtered = gravity;
+            _calibrating = false;
+        }
+
+        /// <summary>
+        /// Como Quaternion.FromToRotation, pero sin ambigüedad cuando los vectores son opuestos
+        /// (teléfono boca abajo): en ese caso gira siempre alrededor del eje X del tablero.
+        /// </summary>
+        private static Quaternion SafeFromTo(Vector3 from, Vector3 to)
+        {
+            return Vector3.Dot(from.normalized, to.normalized) < -0.9995f
+                ? Quaternion.AngleAxis(180f, Vector3.right)
+                : Quaternion.FromToRotation(from, to);
+        }
+
+        /// <summary>
+        /// Ejes del teléfono → ejes del tablero. Teléfono acostado boca arriba: x = derecha, y = borde superior,
+        /// z = hacia la pantalla. Tablero: x = derecha, z = adelante (lejos de la cámara), y = arriba.
+        /// </summary>
+        private Vector3 ToBoardAxes(Vector3 device)
+        {
+            float x = _settings.InvertX ? -device.x : device.x;
+            float y = _settings.InvertY ? -device.y : device.y;
+            return new Vector3(x, device.z, y);
         }
 
         private bool TryReadGravity(out Vector3 gravity)

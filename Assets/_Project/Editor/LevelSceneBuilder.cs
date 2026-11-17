@@ -5,6 +5,7 @@ using EcoTilt.Controls;
 using EcoTilt.Gameplay;
 using EcoTilt.Level;
 using EcoTilt.UI;
+using EcoTilt.Waste;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -22,7 +23,7 @@ namespace EcoTilt.EditorTools
         private const string Root = "Assets/_Project";
         public const string ScenePath = Root + "/Scenes/Nivel1.unity";
         /// <summary>Subir este número cuando cambia el diseño del nivel: la escena se regenera sola una vez.</summary>
-        public const int LevelVersion = 4;
+        public const int LevelVersion = 9;
         private const string VersionPath = Root + "/Data/NivelGenerado_version.txt";
         private const string LayoutPath = Root + "/Data/BoardLayout_Laberinto.asset";
         private const string ThemePath = Root + "/Data/Tema_Tablero.asset";
@@ -55,11 +56,15 @@ namespace EcoTilt.EditorTools
             var library = new LevelMaterialLibrary(Root + "/Materials", Root + "/Physics");
             BoardTheme theme = BoardThemeFactory.LoadOrCreate(ThemePath, library, GetBuiltinCube());
             var prefabs = new PrefabFactory(Root + "/Prefabs", library, theme, new BoardDimensions());
-            WastePrefabs waste = prefabs.CreateWaste();
-            GameObject[] bins = prefabs.CreateBins();
+            WasteCategories categories = WasteCategoryFactory.LoadOrCreate(Root + "/Data/Categorias");
+            WastePrefabs waste = prefabs.PrepareWaste(prefabs.CreateWaste(), categories);
+            GameObject[] bins = prefabs.PrepareBins(prefabs.CreateBins(), categories, waste);
 
             var systems = new GameObject("Sistemas");
             TiltInputProvider input = systems.AddComponent<TiltInputProvider>();
+            systems.AddComponent<PhysicsQuality>();
+            CalibrationPrompt prompt = systems.AddComponent<CalibrationPrompt>();
+            EditorAssetUtility.SetReference(prompt, "source", input);
             TiltDebugOverlay overlay = systems.AddComponent<TiltDebugOverlay>();
             EditorAssetUtility.SetReference(overlay, "source", input);
 
@@ -69,12 +74,17 @@ namespace EcoTilt.EditorTools
             EditorUtility.SetDirty(builder);
 
             KillZone killZone = CreateKillZone();
-            Respawnable[] items = CreateTestWaste(waste, result.SpawnPoint);
-            CreateGameSystems(systems, builder, killZone, items);
+            CreateGameSystems(systems, builder, killZone, waste, categories, input);
 
             SetupLight();
             SetupCamera(result.Footprint);
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            // Horizontal, en cualquiera de los dos sentidos: si el jugador da vuelta el teléfono, la imagen
+            // gira y el juego recalibra solo (TiltInputProvider).
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
 
             EditorAssetUtility.EnsureFolder(Root + "/Scenes");
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -109,49 +119,65 @@ namespace EcoTilt.EditorTools
         private static KillZone CreateKillZone()
         {
             var zone = new GameObject("ZonaDeCaida");
-            zone.transform.position = new Vector3(0f, -8f, 0f);
+            // Grande: con giros bruscos los residuos pueden salir volando lejos del tablero.
+            zone.transform.position = new Vector3(0f, -12f, 0f);
             var trigger = zone.AddComponent<BoxCollider>();
             trigger.isTrigger = true;
-            trigger.size = new Vector3(80f, 2f, 80f);
+            trigger.size = new Vector3(400f, 4f, 400f);
             return zone.AddComponent<KillZone>();
         }
 
-        // Residuos de prueba (en el Hito 2 los reemplaza el spawner).
-        private static Respawnable[] CreateTestWaste(WastePrefabs waste, Transform spawnPoint)
+        private static void CreateGameSystems(GameObject systems, BoardBuilder board, KillZone killZone,
+                                              WastePrefabs waste, WasteCategories categories, TiltInputProvider input)
         {
-            var group = new GameObject("Residuos_Prueba").transform;
-            Quaternion lying = Quaternion.Euler(0f, 0f, 90f);
-            return new[]
+            RecyclingCenter center = systems.AddComponent<RecyclingCenter>();
+            EditorAssetUtility.SetReference(center, "board", board);
+
+            ScoreKeeper score = systems.AddComponent<ScoreKeeper>();
+            EditorAssetUtility.SetReference(score, "center", center);
+
+            WasteSpawner spawner = new GameObject("Residuos").AddComponent<WasteSpawner>();
+            EditorAssetUtility.SetReference(spawner, "board", board);
+            EditorAssetUtility.SetReference(spawner, "center", center);
+            EditorAssetUtility.SetReferenceArray(spawner, "prefabs", new Object[]
             {
-                Place(waste.Bottle, group, spawnPoint, new Vector3(-0.45f, 0f, 0f), lying),
-                Place(waste.Can, group, spawnPoint, new Vector3(0f, 0.3f, 0f), lying),
-                Place(waste.Box, group, spawnPoint, new Vector3(0.45f, 0.6f, 0f), Quaternion.identity)
-            };
-        }
+                waste.Bottle.GetComponent<WasteItem>(), waste.Can.GetComponent<WasteItem>(), waste.Box.GetComponent<WasteItem>()
+            });
 
-        private static Respawnable Place(GameObject prefab, Transform parent, Transform spawnPoint, Vector3 offset, Quaternion rotation)
-        {
-            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-            instance.transform.SetPositionAndRotation(spawnPoint.position + offset, rotation);
-            var respawnable = instance.GetComponent<Respawnable>();
-            EditorAssetUtility.SetReference(respawnable, "spawnPoint", spawnPoint);
-            EditorAssetUtility.SetVector3(respawnable, "spawnOffset", offset);
-            return respawnable;
-        }
+            StickDuringCalibration stick = systems.AddComponent<StickDuringCalibration>();
+            EditorAssetUtility.SetReference(stick, "statusSource", input);
+            EditorAssetUtility.SetReference(stick, "board", board.transform);
+            EditorAssetUtility.SetReference(stick, "spawner", spawner);
 
-        private static void CreateGameSystems(GameObject systems, BoardBuilder board, KillZone killZone, Respawnable[] items)
-        {
             LivesSystem lives = systems.AddComponent<LivesSystem>();
             EditorAssetUtility.SetReference(lives, "killZone", killZone);
 
             LevelRegenerator regenerator = systems.AddComponent<LevelRegenerator>();
             EditorAssetUtility.SetReference(regenerator, "board", board);
             EditorAssetUtility.SetReference(regenerator, "lives", lives);
-            EditorAssetUtility.SetReferenceArray(regenerator, "items", items);
+            EditorAssetUtility.SetReference(regenerator, "spawner", spawner);
+
+            LevelProgress progress = systems.AddComponent<LevelProgress>();
+            EditorAssetUtility.SetReference(progress, "center", center);
+            EditorAssetUtility.SetReference(progress, "lives", lives);
+            EditorAssetUtility.SetReference(progress, "regenerator", regenerator);
+            EditorAssetUtility.SetReference(progress, "spawner", spawner);
+
+            PauseController pause = systems.AddComponent<PauseController>();
+            EditorAssetUtility.SetReference(pause, "calibrationSource", input);
+
+            PauseMenu menu = systems.AddComponent<PauseMenu>();
+            EditorAssetUtility.SetReference(menu, "pause", pause);
+            EditorAssetUtility.SetReferenceArray(menu, "categories", categories.All);
+
+            FeedbackBanner feedback = systems.AddComponent<FeedbackBanner>();
+            EditorAssetUtility.SetReference(feedback, "progress", progress);
 
             LivesHud hud = systems.AddComponent<LivesHud>();
             EditorAssetUtility.SetReference(hud, "lives", lives);
             EditorAssetUtility.SetReference(hud, "regenerator", regenerator);
+            EditorAssetUtility.SetReference(hud, "score", score);
+            EditorAssetUtility.SetReference(hud, "progress", progress);
         }
 
         private static void SetupLight()

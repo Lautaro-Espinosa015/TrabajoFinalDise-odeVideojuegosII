@@ -8,7 +8,7 @@ namespace EcoTilt.Board
     public sealed class BoardDimensions
     {
         [Header("Física")]
-        public float FloorThickness = 0.3f;
+        public float FloorThickness = 0.8f;   // grueso para que un giro brusco no haga atravesar el piso
         public float WallHeight = 0.7f;
 
         [Header("Visual")]

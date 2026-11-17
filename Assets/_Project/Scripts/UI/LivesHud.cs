@@ -1,15 +1,19 @@
 using EcoTilt.Gameplay;
+using EcoTilt.Waste;
 using UnityEngine;
 
 namespace EcoTilt.UI
 {
     /// <summary>
-    /// Indicador simple de vidas y número de mapa (prototipo). En el Hito 3 se reemplaza por la interfaz final.
+    /// Indicador simple de nivel, vidas, residuos del nivel y puntaje (prototipo).
+    /// En el Hito 3 se reemplaza por la interfaz final.
     /// </summary>
     public sealed class LivesHud : MonoBehaviour
     {
         [SerializeField] private LivesSystem lives;
         [SerializeField] private LevelRegenerator regenerator;
+        [SerializeField] private ScoreKeeper score;
+        [SerializeField] private LevelProgress progress;
 
         private GUIStyle _label;
         private GUIStyle _banner;
@@ -21,10 +25,14 @@ namespace EcoTilt.UI
             EnsureStyles(scale);
 
             string hearts = new string('●', lives.Lives) + new string('○', lives.MaxLives - lives.Lives);
-            string map = regenerator != null ? $"   Mapa {regenerator.MapNumber}" : string.Empty;
-            GUI.Label(new Rect(20f * scale, 16f * scale, 600f * scale, 50f * scale), $"Vidas  {hearts}{map}", _label);
+            string level = progress != null ? $"Nivel {progress.Level}    " : string.Empty;
+            GUI.Label(new Rect(20f * scale, 16f * scale, 700f * scale, 50f * scale), $"{level}Vidas  {hearts}", _label);
 
-            if (regenerator != null && regenerator.IsRegenerating)
+            string waste = progress != null ? $"Residuos  {progress.SortedThisLevel}/{progress.WastePerLevel}    " : string.Empty;
+            string points = score != null ? $"Puntos {score.Score}" : string.Empty;
+            GUI.Label(new Rect(20f * scale, 56f * scale, 700f * scale, 50f * scale), waste + points, _label);
+
+            if (regenerator != null && regenerator.IsRegenerating && lives.Lives == 0)
                 GUI.Label(new Rect(0f, Screen.height * 0.4f, Screen.width, 80f * scale),
                           "¡Sin vidas! Armando un laberinto nuevo...", _banner);
         }

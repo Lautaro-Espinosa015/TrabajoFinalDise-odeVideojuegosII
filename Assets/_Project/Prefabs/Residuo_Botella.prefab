@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 5074450086591984577}
   - component: {fileID: 6479583498597708875}
   - component: {fileID: 3505885568376297591}
+  - component: {fileID: 5053724804086479632}
   m_Layer: 0
   m_Name: Residuo_Botella
   m_TagString: Untagged
@@ -158,7 +159,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Gameplay.Respawnable
   spawnPoint: {fileID: 0}
+  spawnOffset: {x: 0, y: 0, z: 0}
   respawnDelay: 1
+--- !u!114 &5053724804086479632
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5057488551122117946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23b9f2bc5ecbd634b83281795eef0e29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Waste.WasteItem
+  category: {fileID: 11400000, guid: b5c0a9a6f4b97fa4ab599c1a557ad05e, type: 2}
+  displayName: La botella
+  restEuler: {x: 0, y: 0, z: 90}
 --- !u!1 &5746336484808238918
 GameObject:
   m_ObjectHideFlags: 0

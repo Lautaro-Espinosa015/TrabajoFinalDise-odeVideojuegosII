@@ -18,10 +18,7 @@ namespace EcoTilt.Gameplay
         private void OnTriggerEnter(Collider other)
         {
             IRespawnable respawnable = other.GetComponentInParent<IRespawnable>();
-            if (respawnable == null || respawnable.IsRespawning) return;
-
-            respawnable.RequestRespawn();
-            Fell?.Invoke(respawnable);
+            if (respawnable != null && respawnable.RequestRespawn()) Fell?.Invoke(respawnable);
         }
     }
 }
