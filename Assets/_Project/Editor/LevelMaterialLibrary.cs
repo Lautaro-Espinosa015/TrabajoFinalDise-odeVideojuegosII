@@ -42,7 +42,7 @@ namespace EcoTilt.EditorTools
             });
         }
 
-        public PhysicsMaterial Physics(string name, float dynamicFriction, float staticFriction, float bounciness)
+        public PhysicsMaterial Physics(string name, float dynamicFriction, float staticFriction, float bounciness, PhysicsMaterialCombine frictionCombine = PhysicsMaterialCombine.Average)
         {
             string path = $"{_physicsFolder}/{name}.asset";
             PhysicsMaterial material = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
@@ -53,7 +53,7 @@ namespace EcoTilt.EditorTools
                 dynamicFriction = dynamicFriction,
                 staticFriction = staticFriction,
                 bounciness = bounciness,
-                frictionCombine = PhysicsMaterialCombine.Average,
+                frictionCombine = frictionCombine,
                 bounceCombine = PhysicsMaterialCombine.Average
             };
             AssetDatabase.CreateAsset(material, path);

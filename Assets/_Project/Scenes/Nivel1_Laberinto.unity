@@ -1943,6 +1943,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 2100000102}
   - component: {fileID: 572896892}
   - component: {fileID: 572896894}
   - component: {fileID: 572896893}
@@ -2046,7 +2047,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Controls.TiltInputProvider
   useSensors: 1
-  deviceTiltForFullInput: 20
+  maxBoardAngle: 30
+  sensitivity: 0.6
   sensorResponsiveness: 12
   sensorDeadZone: 0.05
   invertSensorX: 0
@@ -5248,6 +5250,21 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2133122855}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &2100000102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 572896891}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8de0f3228d443084dbf84048e4d90f52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Board.BoardBuilder
+  containmentMargin: 0.5
+  containmentHeight: 4.5
+  containmentThickness: 0.6
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

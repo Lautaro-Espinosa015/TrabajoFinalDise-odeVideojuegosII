@@ -13,9 +13,9 @@ namespace EcoTilt.Controls
         [Header("Teléfono: el tablero copia su orientación")]
         [SerializeField] private bool useSensors = true;
         [Tooltip("Ángulo máximo que puede alcanzar el tablero.")]
-        [SerializeField, Range(10f, 90f)] private float maxBoardAngle = 90f;
+        [SerializeField, Range(10f, 90f)] private float maxBoardAngle = 30f;
         [Tooltip("1 = espejo exacto del teléfono. Más de 1 exagera los movimientos.")]
-        [SerializeField, Range(0.5f, 2f)] private float sensitivity = 1f;
+        [SerializeField, Range(0.5f, 2f)] private float sensitivity = 0.6f;
         [Tooltip("Filtro de las lecturas: 0 = sin filtro (nervioso). Entre 5 y 10 absorbe el temblor de la mano sin sentirse lento.")]
         [SerializeField, Range(0f, 30f)] private float sensorSmoothing = 8f;
         [Tooltip("Inclinaciones menores a este ángulo se ignoran (temblor de la mano).")]
@@ -58,6 +58,14 @@ namespace EcoTilt.Controls
 
         private void Awake()
         {
+            if (Application.isMobilePlatform)
+            {
+                Screen.autorotateToPortrait = false;
+                Screen.autorotateToPortraitUpsideDown = false;
+                Screen.autorotateToLandscapeLeft = false;
+                Screen.autorotateToLandscapeRight = false;
+                Screen.orientation = ScreenOrientation.LandscapeLeft;
+            }
             Build();
             _orientation = Screen.orientation;
         }
