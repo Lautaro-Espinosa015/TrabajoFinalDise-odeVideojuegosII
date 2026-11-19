@@ -59,11 +59,11 @@ namespace EcoTilt.Controls
         public bool HasData => _hasSample;
 
         /// <summary>True mientras se espera que el teléfono quede quieto para calibrar (el tablero queda nivelado).</summary>
-        public bool IsCalibrating => _calibrating;
+        public bool IsCalibrating => _hasSample && _calibrating;
 
         /// <summary>Progreso de la calibración (0 a 1).</summary>
         public float CalibrationProgress =>
-            _calibrating ? Mathf.Clamp01(_stableTime / Mathf.Max(0.01f, _settings.CalibrationTime)) : 1f;
+            IsCalibrating ? Mathf.Clamp01(_stableTime / Mathf.Max(0.01f, _settings.CalibrationTime)) : 1f;
 
         public Quaternion LastTilt => _lastTilt;
 
@@ -72,7 +72,7 @@ namespace EcoTilt.Controls
             get
             {
                 Vector3 e = _lastTilt.eulerAngles;
-                return $"Sensor: {_source}{(_calibrating ? "  [calibrando...]" : string.Empty)}\n" +
+                return $"Sensor: {_source}{(IsCalibrating ? "  [calibrando...]" : string.Empty)}\n" +
                        $"Gravedad: ({_lastRaw.x:0.00}, {_lastRaw.y:0.00}, {_lastRaw.z:0.00})\n" +
                        $"Tablero: {Tilt.Magnitude(_lastTilt):0}°  (X {Mathf.DeltaAngle(0f, e.x):0}°, Z {Mathf.DeltaAngle(0f, e.z):0}°)";
             }
@@ -93,7 +93,19 @@ namespace EcoTilt.Controls
 
         public Quaternion ReadTilt()
         {
-            if (!TryReadGravity(out Vector3 raw)) return _lastTilt = Quaternion.identity;
+            if (!TryReadGravity(out Vector3 raw))
+            {
+                _hasSample = false;
+                _lastRaw = _filtered = Vector3.zero;
+                if (_calibrating) Calibrate(); // No acumular tiempo sin muestras.
+                return _lastTilt = Quaternion.identity;
+            }
+
+            if (!_hasSample)
+            {
+                _filtered = raw;
+                if (_settings.CalibrateOnFirstSample) Calibrate();
+            }
 
             _lastRaw = raw;
             _hasSample = true;

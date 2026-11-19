@@ -4,9 +4,9 @@ using UnityEngine.InputSystem;
 namespace EcoTilt.Controls
 {
     /// <summary>
-    /// Inclinación con el mouse: mientras se mantiene el click DERECHO, la posición del cursor
+    /// Inclinación con el mouse: mientras se mantiene el clic IZQUIERDO, la posición del cursor
     /// respecto al centro de la pantalla define hacia dónde y cuánto se inclina el tablero.
-    /// Es el derecho para que el click izquierdo con el que se le da foco a la ventana no mueva el tablero.
+    /// Al soltar el botón vuelve a horizontal; los residuos se desplazan por física.
     /// </summary>
     public sealed class MouseTiltInput : ITiltInput
     {
@@ -22,7 +22,7 @@ namespace EcoTilt.Controls
         public Quaternion ReadTilt()
         {
             Mouse mouse = Mouse.current;
-            if (mouse == null || !mouse.rightButton.isPressed) return Quaternion.identity;
+            if (mouse == null || !mouse.leftButton.isPressed) return Quaternion.identity;
 
             Vector2 center = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
             float halfSize = Mathf.Max(1f, Mathf.Min(Screen.width, Screen.height) * 0.5f);

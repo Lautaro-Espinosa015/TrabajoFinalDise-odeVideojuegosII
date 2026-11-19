@@ -78,11 +78,10 @@ namespace EcoTilt.EditorTools
 
             SetupLight();
             SetupCamera(result.Footprint);
-            // Horizontal, en cualquiera de los dos sentidos: si el jugador da vuelta el teléfono, la imagen
-            // gira y el juego recalibra solo (TiltInputProvider).
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
-            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
-            PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            // Horizontal fijo: no girar automáticamente al dar vuelta el teléfono.
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
 
@@ -162,6 +161,9 @@ namespace EcoTilt.EditorTools
             EditorAssetUtility.SetReference(progress, "lives", lives);
             EditorAssetUtility.SetReference(progress, "regenerator", regenerator);
             EditorAssetUtility.SetReference(progress, "spawner", spawner);
+
+            SonidoVictoria victory = systems.AddComponent<SonidoVictoria>();
+            EditorAssetUtility.SetReference(victory, "progress", progress);
 
             PauseController pause = systems.AddComponent<PauseController>();
             EditorAssetUtility.SetReference(pause, "calibrationSource", input);

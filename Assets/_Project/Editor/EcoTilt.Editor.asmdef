@@ -2,7 +2,8 @@
     "name": "EcoTilt.Editor",
     "rootNamespace": "EcoTilt.EditorTools",
     "references": [
-        "EcoTilt.Runtime"
+        "EcoTilt.Runtime",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [
         "Editor"

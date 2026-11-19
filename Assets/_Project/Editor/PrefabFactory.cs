@@ -41,7 +41,7 @@ namespace EcoTilt.EditorTools
         public WastePrefabs CreateWaste()
         {
             PhysicsMaterial rolling = _library.Physics("PM_Rueda", 0.5f, 0.5f, 0.1f);
-            PhysicsMaterial sliding = _library.Physics("PM_Desliza", 0.15f, 0.2f, 0.0f);
+            PhysicsMaterial sliding = _library.Physics("PM_CajaRapida", 0.05f, 0.08f, 0.0f, PhysicsMaterialCombine.Minimum);
 
             return new WastePrefabs
             {
@@ -70,6 +70,7 @@ namespace EcoTilt.EditorTools
                         _library.Lit("M_Caja", new Color(0.72f, 0.53f, 0.32f)), sliding);
                     Decor(box.transform, PrimitiveType.Cube, Vector3.zero, new Vector3(0.22f, 1.02f, 1.02f),
                         _library.Lit("M_Caja_Cinta", new Color(0.86f, 0.78f, 0.58f)));
+                    box.GetComponent<Rigidbody>().linearDamping = 0.01f;
                     return box;
                 })
             };
@@ -92,6 +93,21 @@ namespace EcoTilt.EditorTools
             body.angularDamping = 0.05f;
 
             item.AddComponent<Respawnable>();
+            // SonidoArrastre vive fuera del asmdef: resolver el MonoScript sin duplicar la clase.
+            MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>("Assets/_Project/Prefabs/SonidoArrastre.cs");
+            Type soundType = script != null ? script.GetClass() : null;
+            if (soundType != null)
+            {
+                Component sound = item.GetComponent(soundType) ?? item.AddComponent(soundType);
+                var serialized = new SerializedObject(sound);
+                serialized.FindProperty("sonido").objectReferenceValue =
+                    AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/_Project/Prefabs/{name}.wav");
+                serialized.FindProperty("velocidadMinima").floatValue = 0.1f;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                var audio = item.GetComponent<AudioSource>();
+                audio.playOnAwake = false;
+                audio.mute = false;
+            }
             return item;
         }
 
@@ -254,6 +270,9 @@ namespace EcoTilt.EditorTools
         /// <summary>Deja solo lo visual: sin scripts de juego, cuerpo rígido ni colisiones.</summary>
         private static void StripPhysics(GameObject go)
         {
+            foreach (MonoBehaviour script in go.GetComponentsInChildren<MonoBehaviour>())
+                if (script != null && script.GetType().Name == "SonidoArrastre") UnityEngine.Object.DestroyImmediate(script);
+            foreach (AudioSource audio in go.GetComponentsInChildren<AudioSource>()) UnityEngine.Object.DestroyImmediate(audio);
             foreach (WasteItem item in go.GetComponentsInChildren<WasteItem>()) UnityEngine.Object.DestroyImmediate(item);
             foreach (Respawnable respawnable in go.GetComponentsInChildren<Respawnable>()) UnityEngine.Object.DestroyImmediate(respawnable);
             foreach (Rigidbody body in go.GetComponentsInChildren<Rigidbody>()) UnityEngine.Object.DestroyImmediate(body);
