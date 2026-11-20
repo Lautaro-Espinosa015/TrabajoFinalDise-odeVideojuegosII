@@ -13,7 +13,7 @@ namespace EcoTilt.Controls
     {
         [Header("Teléfono: el tablero copia su orientación")]
         [SerializeField] private bool useSensors = true;
-        [Tooltip("Respuesta \"Fiel\": el tablero copia al teléfono casi sin demora.")]
+        [Tooltip("Respuesta \"Fiel\": ligeramente más potente que Suave, con giro limitado.")]
         [SerializeField] private TiltResponseSettings faithfulResponse = TiltResponseSettings.Faithful;
         [Tooltip("Respuesta \"Suave\": movimientos más tranquilos.")]
         [SerializeField] private TiltResponseSettings smoothResponse = TiltResponseSettings.Smooth;
@@ -44,6 +44,18 @@ namespace EcoTilt.Controls
         private Quaternion _lastTilt = Quaternion.identity;
         private ScreenOrientation _orientation;
         private TiltResponseMode _mode;
+        private float _faithfulSensitivity;
+
+        public float FaithfulSensitivity
+        {
+            get => _faithfulSensitivity;
+            set
+            {
+                _faithfulSensitivity = Mathf.Clamp(value, TiltResponsePreference.MinSensitivity, TiltResponsePreference.MaxSensitivity);
+                TiltResponsePreference.SaveSensitivity(_faithfulSensitivity);
+                if (_mode == TiltResponseMode.Fiel) _sensor?.SetResponse(CurrentResponse);
+            }
+        }
 
         /// <summary>Respuesta elegida por el jugador (se guarda entre partidas).</summary>
         public TiltResponseMode ResponseMode
@@ -57,8 +69,16 @@ namespace EcoTilt.Controls
             }
         }
 
-        private TiltResponseSettings CurrentResponse =>
-            _mode == TiltResponseMode.Suave ? smoothResponse : faithfulResponse;
+        private TiltResponseSettings CurrentResponse
+        {
+            get
+            {
+                if (_mode == TiltResponseMode.Suave) return smoothResponse;
+                var response = faithfulResponse;
+                response.Sensitivity = _faithfulSensitivity;
+                return response;
+            }
+        }
 
         public bool HasData => _sensor != null && _sensor.HasData;
         public bool IsCalibrating => _sensor != null && _sensor.IsCalibrating;
@@ -83,6 +103,7 @@ namespace EcoTilt.Controls
                 Screen.orientation = ScreenOrientation.LandscapeLeft;
             }
             _mode = TiltResponsePreference.Load();
+            _faithfulSensitivity = TiltResponsePreference.LoadSensitivity(faithfulResponse.Sensitivity);
             Build();
             _orientation = Screen.orientation;
         }
@@ -104,6 +125,13 @@ namespace EcoTilt.Controls
         {
             _sensor?.Calibrate();
         }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) PlayerPrefs.Save();
+        }
+
+        private void OnDestroy() => PlayerPrefs.Save();
 
         private void Build()
         {

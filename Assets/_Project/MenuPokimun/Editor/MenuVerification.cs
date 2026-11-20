@@ -40,7 +40,7 @@ public static class MenuVerification
             }
         var options = menu.menuOpciones.GetComponentInChildren<OpcionesMenu>(true);
         if (options == null || options.volumenMusica == null || options.volumenEfectos == null ||
-            options.fullscreen == null || options.fpsText == null) throw new Exception("Opciones incompletas");
+            options.fpsText == null) throw new Exception("Opciones incompletas");
         if (UnityEngine.Object.FindFirstObjectByType<EventSystem>()?.GetComponent<InputSystemUIInputModule>() == null)
             throw new Exception("Falta entrada UI");
         var enabled = EditorBuildSettings.scenes.Where(s => s.enabled).ToArray();

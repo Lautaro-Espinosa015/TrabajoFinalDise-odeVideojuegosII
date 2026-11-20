@@ -22,8 +22,8 @@ namespace EcoTilt.EditorTools
             Check(provider != null, "Nivel1 tiene proveedor de sensores");
             var faithful = (TiltResponseSettings)typeof(TiltInputProvider).GetField("faithfulResponse", Private).GetValue(provider);
             var smooth = (TiltResponseSettings)typeof(TiltInputProvider).GetField("smoothResponse", Private).GetValue(provider);
-            Check(faithful.MaxAngle == 90f && faithful.Sensitivity == 1f && faithful.MaxDegreesPerSecond == 0f,
-                "Respuesta Fiel: 1 a 1, hasta 90°, sin límite de giro");
+            Check(faithful.MaxAngle == 35f && Mathf.Approximately(faithful.Sensitivity, 0.7f) && faithful.MaxDegreesPerSecond == 180f,
+                "Respuesta Fiel moderada: 35°, sensibilidad 0,7 y giro limitado a 180°/s");
             Check(smooth.MaxAngle == 30f && smooth.Sensitivity < 1f && smooth.MaxDegreesPerSecond > 0f,
                 "Respuesta Suave: 30°, sensibilidad reducida y giro limitado");
             Check(UnityEngine.Object.FindFirstObjectByType<BoardTiltController>() != null, "Control físico del tablero presente");
@@ -50,11 +50,41 @@ namespace EcoTilt.EditorTools
                     InputSystem.Update();
                     float actual = Tilt.Magnitude(restored.ReadTilt());
                     float before = Tilt.Magnitude(reduced.ReadTilt());
-                    Check(Mathf.Abs(actual - (angle - faithful.DeadZone)) < 0.2f && actual > before,
+                    Check(Mathf.Abs(actual - Mathf.Min((angle - faithful.DeadZone) * faithful.Sensitivity, faithful.MaxAngle)) < 0.2f && actual > before && actual <= before * 1.35f,
                         $"Teléfono {angle}°: Fiel {actual:0.0}°, Suave {before:0.0}°");
                 }
             }
             finally { InputSystem.RemoveDevice(device); }
+
+            bool hadSensitivity = PlayerPrefs.HasKey("SensibilidadFiel");
+            bool hadMode = PlayerPrefs.HasKey("RespuestaTablero");
+            float savedSensitivity = TiltResponsePreference.LoadSensitivity();
+            var savedMode = TiltResponsePreference.Load();
+            try
+            {
+                provider.ResponseMode = TiltResponseMode.Fiel;
+                provider.FaithfulSensitivity = 5f;
+                Check(provider.FaithfulSensitivity == 0.8f && TiltResponsePreference.LoadSensitivity() == 0.8f,
+                    "Variador limita y guarda el máximo en 0,8");
+                provider.FaithfulSensitivity = 0f;
+                Check(provider.FaithfulSensitivity == 0.6f, "Variador limita el mínimo en 0,6");
+                provider.ResponseMode = TiltResponseMode.Suave;
+                provider.FaithfulSensitivity = 0.75f;
+                var response = (TiltResponseSettings)typeof(TiltInputProvider).GetProperty("CurrentResponse", Private).GetValue(provider);
+                Check(response.Sensitivity == smooth.Sensitivity && response.MaxDegreesPerSecond == smooth.MaxDegreesPerSecond,
+                    "Ajustar Fiel conserva el modo Suave");
+                provider.ResponseMode = TiltResponseMode.Fiel;
+                response = (TiltResponseSettings)typeof(TiltInputProvider).GetProperty("CurrentResponse", Private).GetValue(provider);
+                Check(response.Sensitivity == 0.75f, "Cambiar a Fiel aplica la sensibilidad elegida");
+            }
+            finally
+            {
+                TiltResponsePreference.SaveSensitivity(savedSensitivity);
+                TiltResponsePreference.Save(savedMode);
+                if (!hadSensitivity) PlayerPrefs.DeleteKey("SensibilidadFiel");
+                if (!hadMode) PlayerPrefs.DeleteKey("RespuestaTablero");
+                PlayerPrefs.Save();
+            }
 
             foreach (float scale in new[] { 0.75f, 1f, 1.5f })
             {

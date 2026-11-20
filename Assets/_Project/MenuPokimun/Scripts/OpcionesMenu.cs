@@ -10,8 +10,7 @@ public class OpcionesMenu : MonoBehaviour
     public float valueEfectos;
     public Image mute;
     #endregion
-    #region Variables PC
-    public Toggle fullscreen;
+    #region Rendimiento
     public TMPro.TextMeshProUGUI fpsText;
     #endregion
 
@@ -26,12 +25,7 @@ public class OpcionesMenu : MonoBehaviour
         
         checkMute();
         #endregion
-        #region Start PC
-        if (fullscreen != null)
-        {
-            fullscreen.SetIsOnWithoutNotify(Screen.fullScreen);
-            fullscreen.interactable = !Application.isMobilePlatform;
-        }
+        #region Rendimiento
         int currentFPS = LimiteFPS.Leer();
         if (fpsText != null) fpsText.text = $"FPS: {currentFPS}";
         #endregion
@@ -66,12 +60,6 @@ public class OpcionesMenu : MonoBehaviour
     }
     #endregion
 
-    #region Pantalla Completa
-    public void changeFullscreen(bool isFullscreen)
-    {
-        if (!Application.isMobilePlatform) Screen.fullScreen = isFullscreen;
-    }
-    #endregion
     #region FPS
     public void CycleFPS()
     {

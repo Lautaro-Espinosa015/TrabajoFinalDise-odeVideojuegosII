@@ -6,7 +6,7 @@ namespace EcoTilt.Controls
     /// <summary>Cómo responde el tablero a los movimientos del teléfono.</summary>
     public enum TiltResponseMode
     {
-        /// <summary>El tablero copia al teléfono casi sin demora (1 a 1, hasta 90°).</summary>
+        /// <summary>Respuesta moderada, ligeramente más potente que Suave y ajustable.</summary>
         Fiel = 0,
         /// <summary>Movimientos más tranquilos: menos ángulo, filtro y giro limitado.</summary>
         Suave = 1
@@ -30,7 +30,7 @@ namespace EcoTilt.Controls
 
         public static TiltResponseSettings Faithful => new TiltResponseSettings
         {
-            MaxAngle = 90f, Sensitivity = 1f, Smoothing = 30f, DeadZone = 1f, MaxDegreesPerSecond = 0f
+            MaxAngle = 35f, Sensitivity = 0.7f, Smoothing = 10f, DeadZone = 2f, MaxDegreesPerSecond = 180f
         };
 
         public static TiltResponseSettings Smooth => new TiltResponseSettings
@@ -43,12 +43,22 @@ namespace EcoTilt.Controls
     public interface ITiltResponseSelector
     {
         TiltResponseMode ResponseMode { get; set; }
+        float FaithfulSensitivity { get; set; }
     }
 
     /// <summary>Guarda la respuesta elegida entre partidas.</summary>
     public static class TiltResponsePreference
     {
         private const string Key = "RespuestaTablero";
+        private const string SensitivityKey = "SensibilidadFiel";
+        public const float MinSensitivity = 0.6f;
+        public const float MaxSensitivity = 0.8f;
+
+        public static float LoadSensitivity(float fallback = 0.7f) =>
+            Mathf.Clamp(PlayerPrefs.GetFloat(SensitivityKey, fallback), MinSensitivity, MaxSensitivity);
+
+        public static void SaveSensitivity(float value) =>
+            PlayerPrefs.SetFloat(SensitivityKey, Mathf.Clamp(value, MinSensitivity, MaxSensitivity));
 
         public static TiltResponseMode Load() =>
             PlayerPrefs.GetInt(Key, (int)TiltResponseMode.Fiel) == (int)TiltResponseMode.Suave
