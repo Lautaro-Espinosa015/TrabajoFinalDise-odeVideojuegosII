@@ -15,9 +15,9 @@ namespace EcoTilt.Board
         [SerializeField] private MonoBehaviour inputSource;
         [Tooltip("Suavizado extra del tablero. 0 = sigue al instante (control total).")]
         [SerializeField, Range(0f, 30f)] private float smoothing = 0f;
-        [Tooltip("Velocidad de giro máxima en grados por segundo. 0 = sin límite. Con 120-200 los giros bruscos " +
-                 "siguen lanzando los residuos, pero el tablero se siente pesado.")]
-        [SerializeField, Min(0f)] private float maxAngularSpeed = 150f;
+        [Tooltip("Tope de seguridad de la velocidad de giro (grados por segundo). 0 = sin tope. " +
+                 "El límite que se siente al jugar depende de la respuesta elegida (Fiel / Suave) en el input.")]
+        [SerializeField, Min(0f)] private float angularSpeedCap = 720f;
         [Tooltip("Al empezar, el tablero pasa de nivelado al control del jugador en este tiempo (segundos).")]
         [SerializeField, Min(0f)] private float startBlendTime = 1.5f;
 
@@ -68,8 +68,8 @@ namespace EcoTilt.Board
 
             if (smoothing > 0f)
                 target = Quaternion.Slerp(_current, target, 1f - Mathf.Exp(-smoothing * Time.fixedDeltaTime));
-            if (maxAngularSpeed > 0f)
-                target = Quaternion.RotateTowards(_current, target, maxAngularSpeed * Time.fixedDeltaTime);
+            if (angularSpeedCap > 0f)
+                target = Quaternion.RotateTowards(_current, target, angularSpeedCap * Time.fixedDeltaTime);
 
             _current = target;
             _body.MoveRotation(_restRotation * _current);

@@ -8,18 +8,15 @@ namespace EcoTilt.Controls
     /// y las expone como un único ITiltInput. Es el único lugar que conoce las clases concretas.
     /// </summary>
     [DefaultExecutionOrder(-100)]
-    public sealed class TiltInputProvider : MonoBehaviour, ITiltInput, ICalibratable, ITiltDiagnostics, ITiltStatus
+    public sealed class TiltInputProvider : MonoBehaviour, ITiltInput, ICalibratable, ITiltDiagnostics, ITiltStatus,
+                                            ITiltResponseSelector
     {
         [Header("Teléfono: el tablero copia su orientación")]
         [SerializeField] private bool useSensors = true;
-        [Tooltip("Ángulo máximo que puede alcanzar el tablero.")]
-        [SerializeField, Range(10f, 90f)] private float maxBoardAngle = 90f;
-        [Tooltip("1 = espejo exacto del teléfono. Más de 1 exagera los movimientos.")]
-        [SerializeField, Range(0.5f, 2f)] private float sensitivity = 1f;
-        [Tooltip("Filtro de las lecturas: 0 = sin filtro (nervioso). Entre 5 y 10 absorbe el temblor de la mano sin sentirse lento.")]
-        [SerializeField, Range(0f, 30f)] private float sensorSmoothing = 8f;
-        [Tooltip("Inclinaciones menores a este ángulo se ignoran (temblor de la mano).")]
-        [SerializeField, Range(0f, 10f)] private float sensorDeadZone = 2f;
+        [Tooltip("Respuesta \"Fiel\": el tablero copia al teléfono casi sin demora.")]
+        [SerializeField] private TiltResponseSettings faithfulResponse = TiltResponseSettings.Faithful;
+        [Tooltip("Respuesta \"Suave\": movimientos más tranquilos.")]
+        [SerializeField] private TiltResponseSettings smoothResponse = TiltResponseSettings.Smooth;
         [Header("Calibración (posición inicial = tablero horizontal)")]
         [Tooltip("Segundos que el teléfono tiene que estar quieto para tomar su posición como horizontal.")]
         [SerializeField, Range(0.2f, 3f)] private float calibrationTime = 0.8f;
@@ -46,11 +43,30 @@ namespace EcoTilt.Controls
         private SensorTiltInput _sensor;
         private Quaternion _lastTilt = Quaternion.identity;
         private ScreenOrientation _orientation;
+        private TiltResponseMode _mode;
+
+        /// <summary>Respuesta elegida por el jugador (se guarda entre partidas).</summary>
+        public TiltResponseMode ResponseMode
+        {
+            get => _mode;
+            set
+            {
+                _mode = value;
+                TiltResponsePreference.Save(value);
+                _sensor?.SetResponse(CurrentResponse);
+            }
+        }
+
+        private TiltResponseSettings CurrentResponse =>
+            _mode == TiltResponseMode.Suave ? smoothResponse : faithfulResponse;
 
         public bool HasData => _sensor != null && _sensor.HasData;
         public bool IsCalibrating => _sensor != null && _sensor.IsCalibrating;
         public float CalibrationProgress => _sensor != null ? _sensor.CalibrationProgress : 1f;
         public Quaternion LastTilt => _lastTilt;
+
+        /// <summary>Sensor que se está usando (por ejemplo, "Giroscopio (...)").</summary>
+        public string SensorName => _sensor != null ? _sensor.SourceName : "Sensores desactivados";
 
         public string Diagnostics =>
             (_sensor != null ? _sensor.Diagnostics : "Sensores desactivados") +
@@ -66,6 +82,7 @@ namespace EcoTilt.Controls
                 Screen.autorotateToLandscapeRight = false;
                 Screen.orientation = ScreenOrientation.LandscapeLeft;
             }
+            _mode = TiltResponsePreference.Load();
             Build();
             _orientation = Screen.orientation;
         }
@@ -97,10 +114,6 @@ namespace EcoTilt.Controls
             {
                 _sensor = new SensorTiltInput(new SensorTiltInput.Settings
                 {
-                    MaxAngle = maxBoardAngle,
-                    Sensitivity = sensitivity,
-                    Smoothing = sensorSmoothing,
-                    DeadZone = sensorDeadZone,
                     CalibrationTime = calibrationTime,
                     CalibrationTolerance = calibrationTolerance,
                     CalibrationTimeout = calibrationTimeout,
@@ -108,6 +121,7 @@ namespace EcoTilt.Controls
                     InvertY = invertSensorY,
                     CalibrateOnFirstSample = calibrateOnStart
                 });
+                _sensor.SetResponse(CurrentResponse);
                 sources.Add(_sensor);
             }
 

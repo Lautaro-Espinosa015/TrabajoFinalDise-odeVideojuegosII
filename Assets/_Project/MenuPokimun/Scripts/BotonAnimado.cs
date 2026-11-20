@@ -51,7 +51,7 @@ public class BotonAnimado : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
         if (clickClip == null) clickClip = CreateTone(850f);
         AudioSource.PlayClipAtPoint(frequency < 800f ? hoverClip : clickClip,
             Camera.main != null ? Camera.main.transform.position : Vector3.zero,
-            PlayerPrefs.GetFloat("VolumenEfectos", 0.85f) * 0.2f);
+            EcoTilt.Audio.AudioPreferences.Effects * 0.2f);
     }
 
     private static AudioClip CreateTone(float frequency)

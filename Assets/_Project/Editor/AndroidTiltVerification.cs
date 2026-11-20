@@ -20,9 +20,12 @@ namespace EcoTilt.EditorTools
             EditorSceneManager.OpenScene("Assets/_Project/Scenes/Nivel1.unity");
             var provider = UnityEngine.Object.FindFirstObjectByType<TiltInputProvider>();
             Check(provider != null, "Nivel1 tiene proveedor de sensores");
-            float max = (float)typeof(TiltInputProvider).GetField("maxBoardAngle", Private).GetValue(provider);
-            float sensitivity = (float)typeof(TiltInputProvider).GetField("sensitivity", Private).GetValue(provider);
-            Check(max == 90f && sensitivity == 1f, "Escena: sensibilidad 1 y límite 90°, como el merge #2");
+            var faithful = (TiltResponseSettings)typeof(TiltInputProvider).GetField("faithfulResponse", Private).GetValue(provider);
+            var smooth = (TiltResponseSettings)typeof(TiltInputProvider).GetField("smoothResponse", Private).GetValue(provider);
+            Check(faithful.MaxAngle == 90f && faithful.Sensitivity == 1f && faithful.MaxDegreesPerSecond == 0f,
+                "Respuesta Fiel: 1 a 1, hasta 90°, sin límite de giro");
+            Check(smooth.MaxAngle == 30f && smooth.Sensitivity < 1f && smooth.MaxDegreesPerSecond > 0f,
+                "Respuesta Suave: 30°, sensibilidad reducida y giro limitado");
             Check(UnityEngine.Object.FindFirstObjectByType<BoardTiltController>() != null, "Control físico del tablero presente");
             var calibration = UnityEngine.Object.FindFirstObjectByType<TiltDebugOverlay>();
             Check(calibration != null && (typeof(TiltDebugOverlay).GetField("source", Private).GetValue(calibration) as MonoBehaviour) == provider,
@@ -34,11 +37,11 @@ namespace EcoTilt.EditorTools
                 InputSystem.EnableDevice(device);
                 var restored = new SensorTiltInput(new SensorTiltInput.Settings
                 {
-                    MaxAngle = max, Sensitivity = sensitivity, DeadZone = 2f, Smoothing = 0f
+                    MaxAngle = faithful.MaxAngle, Sensitivity = faithful.Sensitivity, DeadZone = faithful.DeadZone, Smoothing = 0f
                 });
                 var reduced = new SensorTiltInput(new SensorTiltInput.Settings
                 {
-                    MaxAngle = 30f, Sensitivity = 0.6f, DeadZone = 2f, Smoothing = 0f
+                    MaxAngle = smooth.MaxAngle, Sensitivity = smooth.Sensitivity, DeadZone = smooth.DeadZone, Smoothing = 0f
                 });
                 foreach (float angle in new[] { 30f, 60f })
                 {
@@ -47,8 +50,8 @@ namespace EcoTilt.EditorTools
                     InputSystem.Update();
                     float actual = Tilt.Magnitude(restored.ReadTilt());
                     float before = Tilt.Magnitude(reduced.ReadTilt());
-                    Check(Mathf.Abs(actual - (angle - 2f)) < 0.2f && actual > before,
-                        $"Teléfono {angle}°: restaurado {actual:0.0}°, merge #3 {before:0.0}°");
+                    Check(Mathf.Abs(actual - (angle - faithful.DeadZone)) < 0.2f && actual > before,
+                        $"Teléfono {angle}°: Fiel {actual:0.0}°, Suave {before:0.0}°");
                 }
             }
             finally { InputSystem.RemoveDevice(device); }

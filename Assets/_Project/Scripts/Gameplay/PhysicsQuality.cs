@@ -25,9 +25,16 @@ namespace EcoTilt.Gameplay
         [SerializeField, Range(0f, 2f)] private float linearDamping = 0.15f;
         [SerializeField, Range(0f, 2f)] private float angularDamping = 0.3f;
 
+        [Header("Rendimiento")]
+        [Tooltip("Atraso máximo (segundos) que la física recupera en un cuadro. Unity usa 0,33: si el teléfono se " +
+                 "calienta y un cuadro tarda, se acumulan decenas de pasos de física, el siguiente cuadro tarda más " +
+                 "y el juego entra en cámara lenta. Con 0,05 se descarta ese atraso y el control sigue al día.")]
+        [SerializeField, Range(0.02f, 0.33f)] private float maximumFrameCatchUp = 0.05f;
+
         private void Awake()
         {
             Time.fixedDeltaTime = 1f / stepsPerSecond;
+            Time.maximumDeltaTime = Mathf.Max(maximumFrameCatchUp, Time.fixedDeltaTime);
             Physics.defaultSolverIterations = solverIterations;
             Physics.defaultSolverVelocityIterations = solverVelocityIterations;
             Physics.defaultMaxAngularSpeed = maxAngularSpeed;

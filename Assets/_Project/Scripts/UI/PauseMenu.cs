@@ -1,3 +1,4 @@
+using EcoTilt.Controls;
 using EcoTilt.Gameplay;
 using EcoTilt.Waste;
 using UnityEngine;
@@ -6,16 +7,33 @@ namespace EcoTilt.UI
 {
     /// <summary>
     /// Botón de pausa y menú simple (prototipo; se reemplaza por la interfaz final en el Hito 3).
-    /// El menú recuerda qué va en cada contenedor.
+    /// El menú recuerda qué va en cada contenedor y permite elegir la respuesta del tablero (Fiel / Suave).
     /// </summary>
     public sealed class PauseMenu : MonoBehaviour
     {
         [SerializeField] private PauseController pause;
         [SerializeField] private WasteCategory[] categories = new WasteCategory[0];
+        [Tooltip("Componente que implemente ITiltResponseSelector (por ejemplo, TiltInputProvider). " +
+                 "Si queda vacío se busca en la escena.")]
+        [SerializeField] private MonoBehaviour responseSource;
+
+        private const string MainMenuScene = "Assets/_Project/Scenes/MenuPrincipal.unity";
+        private ITiltResponseSelector _response;
+        private TiltInputProvider _provider;
+
+        private void Awake()
+        {
+            _response = responseSource as ITiltResponseSelector;
+            if (_response == null)
+                foreach (MonoBehaviour behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+                    if (behaviour is ITiltResponseSelector selector) { _response = selector; break; }
+            _provider = _response as TiltInputProvider;
+        }
 
         private GUIStyle _title;
         private GUIStyle _text;
         private GUIStyle _button;
+        private GUIStyle _small;
 
         private void OnGUI()
         {
@@ -52,20 +70,53 @@ namespace EcoTilt.UI
                 y += 46f * scale;
             }
 
-            y += 20f * scale;
-            if (GUI.Button(new Rect(x, y, width, 76f * scale), "Continuar", _button)) pause.Resume();
-            y += 90f * scale;
-            if (GUI.Button(new Rect(x, y, width, 76f * scale), "Reiniciar", _button)) pause.Restart();
-            y += 90f * scale;
-            if (GUI.Button(new Rect(x, y, width, 76f * scale), "Menú principal", _button))
+            // Botones en dos columnas para que entren en un teléfono apaisado.
+            y += 16f * scale;
+            float gap = 16f * scale;
+            float wide = Mathf.Min(Screen.width - 32f * scale, 800f * scale);
+            float left = (Screen.width - wide) * 0.5f;
+            float half = (wide - gap) * 0.5f;
+            float height = 70f * scale;
+            float step = height + 12f * scale;
+            Rect Cell(int column, int row) => new Rect(left + column * (half + gap), y + row * step, half, height);
+
+            if (GUI.Button(Cell(0, 0), "Continuar", _button)) pause.Resume();
+            if (GUI.Button(Cell(1, 0), "Reiniciar", _button)) pause.Restart();
+
+            if (_response != null)
+            {
+                bool faithful = _response.ResponseMode == TiltResponseMode.Fiel;
+                if (GUI.Button(Cell(0, 1), faithful ? "Respuesta: Fiel" : "Respuesta: Suave", _button))
+                    _response.ResponseMode = faithful ? TiltResponseMode.Suave : TiltResponseMode.Fiel;
+            }
+            if (GUI.Button(_response != null ? Cell(1, 1) : Cell(0, 1), "Menú principal", _button))
             {
                 Time.timeScale = 1f;
                 AudioListener.pause = false;
-                UnityEngine.SceneManagement.SceneManager.LoadScene("Assets/_Project/Scenes/MenuPrincipal.unity");
+                UnityEngine.SceneManagement.SceneManager.LoadScene(MainMenuScene);
             }
-            y += 90f * scale;
-            GUI.Label(new Rect(x, y, width, 60f * scale),
+            if (GUI.Button(Cell(0, 2), "Salir del juego", _button)) QuitGame();
+
+            string hint = _response == null ? string.Empty
+                : _response.ResponseMode == TiltResponseMode.Fiel
+                    ? "Fiel: el tablero copia tu teléfono al instante."
+                    : "Suave: movimientos más tranquilos y limitados.";
+            string sensor = _provider != null ? $"\nControl: {_provider.SensorName}" : string.Empty;
+            GUI.Label(new Rect(left + half + gap, y + 2f * step - 6f * scale, half, height + 60f * scale),
+                      hint + sensor, _small);
+            y += 3f * step;
+            GUI.Label(new Rect(left, y, wide, 60f * scale),
                       "Al continuar, sostené el teléfono quieto un momento para calibrar.", _text);
+        }
+
+        private static void QuitGame()
+        {
+            PlayerPrefs.Save();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void EnsureStyles(float scale)
@@ -76,7 +127,9 @@ namespace EcoTilt.UI
             _title.normal.textColor = Color.white;
             _text = new GUIStyle(GUI.skin.label) { fontSize = size, wordWrap = true };
             _text.normal.textColor = Color.white;
-            _button = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(32f * scale), fontStyle = FontStyle.Bold };
+            _button = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(30f * scale), fontStyle = FontStyle.Bold };
+            _small = new GUIStyle(_text) { fontSize = Mathf.RoundToInt(20f * scale) };
+            _small.normal.textColor = new Color(0.85f, 0.92f, 0.88f);
         }
     }
 }

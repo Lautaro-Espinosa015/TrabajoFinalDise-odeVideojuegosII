@@ -40,7 +40,7 @@ namespace EcoTilt.Gameplay
             if (lastLevel == level) return;
             lastLevel = level;
             if (sonido == null && generated == null) generated = CreateMelody();
-            source.PlayOneShot(sonido != null ? sonido : generated, volumen * PlayerPrefs.GetFloat("VolumenEfectos", 0.85f));
+            source.PlayOneShot(sonido != null ? sonido : generated, volumen * EcoTilt.Audio.AudioPreferences.Effects);
         }
 
         private static AudioClip CreateMelody()
