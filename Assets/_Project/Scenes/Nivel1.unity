@@ -1601,8 +1601,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Controls.TiltInputProvider
   useSensors: 1
-  maxBoardAngle: 30
-  sensitivity: 0.6
+  maxBoardAngle: 90
+  sensitivity: 1
   sensorSmoothing: 8
   sensorDeadZone: 2
   calibrationTime: 0.8

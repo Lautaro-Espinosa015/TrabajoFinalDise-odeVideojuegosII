@@ -25,7 +25,7 @@ namespace EcoTilt.UI
 
             if (!pause.IsPaused)
             {
-                var corner = new Rect(Screen.width - 100f * scale, 16f * scale, 84f * scale, 70f * scale);
+                var corner = GameplayHudLayout.PauseButton(scale);
                 if (GUI.Button(corner, "II", _button)) pause.Pause();
                 return;
             }
@@ -56,6 +56,13 @@ namespace EcoTilt.UI
             if (GUI.Button(new Rect(x, y, width, 76f * scale), "Continuar", _button)) pause.Resume();
             y += 90f * scale;
             if (GUI.Button(new Rect(x, y, width, 76f * scale), "Reiniciar", _button)) pause.Restart();
+            y += 90f * scale;
+            if (GUI.Button(new Rect(x, y, width, 76f * scale), "Menú principal", _button))
+            {
+                Time.timeScale = 1f;
+                AudioListener.pause = false;
+                UnityEngine.SceneManagement.SceneManager.LoadScene("Assets/_Project/Scenes/MenuPrincipal.unity");
+            }
             y += 90f * scale;
             GUI.Label(new Rect(x, y, width, 60f * scale),
                       "Al continuar, sostené el teléfono quieto un momento para calibrar.", _text);
