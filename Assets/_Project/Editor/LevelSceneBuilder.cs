@@ -23,7 +23,7 @@ namespace EcoTilt.EditorTools
         private const string Root = "Assets/_Project";
         public const string ScenePath = Root + "/Scenes/Nivel1.unity";
         /// <summary>Subir este número cuando cambia el diseño del nivel: la escena se regenera sola una vez.</summary>
-        public const int LevelVersion = 9;
+        public const int LevelVersion = 10;
         private const string VersionPath = Root + "/Data/NivelGenerado_version.txt";
         private const string LayoutPath = Root + "/Data/BoardLayout_Laberinto.asset";
         private const string ThemePath = Root + "/Data/Tema_Tablero.asset";
@@ -76,6 +76,7 @@ namespace EcoTilt.EditorTools
             KillZone killZone = CreateKillZone();
             CreateGameSystems(systems, builder, killZone, waste, categories, input);
 
+            CreateMusic();
             SetupLight();
             SetupCamera(result.Footprint);
             // Horizontal fijo: no girar automáticamente al dar vuelta el teléfono.
@@ -171,6 +172,7 @@ namespace EcoTilt.EditorTools
             PauseMenu menu = systems.AddComponent<PauseMenu>();
             EditorAssetUtility.SetReference(menu, "pause", pause);
             EditorAssetUtility.SetReferenceArray(menu, "categories", categories.All);
+            EditorAssetUtility.SetReference(menu, "responseSource", input);
 
             FeedbackBanner feedback = systems.AddComponent<FeedbackBanner>();
             EditorAssetUtility.SetReference(feedback, "progress", progress);
@@ -180,6 +182,27 @@ namespace EcoTilt.EditorTools
             EditorAssetUtility.SetReference(hud, "regenerator", regenerator);
             EditorAssetUtility.SetReference(hud, "score", score);
             EditorAssetUtility.SetReference(hud, "progress", progress);
+        }
+
+        /// <summary>
+        /// Música de fondo (MusicaFondo, de Brian). Antes se agregaba a mano a la escena y se perdía al regenerarla.
+        /// El script vive fuera del asmdef, por eso se resuelve por su MonoScript.
+        /// </summary>
+        private static void CreateMusic()
+        {
+            MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(Root + "/Prefabs/MusicaFondo.cs");
+            System.Type type = script != null ? script.GetClass() : null;
+            if (type == null)
+            {
+                Debug.LogWarning("EcoTilt: no se encontró MusicaFondo.cs; la escena queda sin música.");
+                return;
+            }
+            var music = new GameObject("Musica", typeof(AudioSource));
+            var serialized = new SerializedObject(music.AddComponent(type));
+            serialized.FindProperty("musica").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<AudioClip>(Root + "/Prefabs/Musiquita.wav");
+            serialized.FindProperty("volumen").floatValue = 0.27f;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void SetupLight()

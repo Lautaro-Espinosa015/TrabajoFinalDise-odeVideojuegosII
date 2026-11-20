@@ -18,8 +18,8 @@ public class OpcionesMenu : MonoBehaviour
     void Start()
     {
         #region Start Volumen
-        valueMusica = Mathf.Clamp01(PlayerPrefs.GetFloat("VolumenMusica", 0.35f));
-        valueEfectos = Mathf.Clamp01(PlayerPrefs.GetFloat("VolumenEfectos", 0.85f));
+        valueMusica = EcoTilt.Audio.AudioPreferences.Music;
+        valueEfectos = EcoTilt.Audio.AudioPreferences.Effects;
         
         if (volumenMusica != null) volumenMusica.SetValueWithoutNotify(valueMusica);
         if (volumenEfectos != null) volumenEfectos.SetValueWithoutNotify(valueEfectos);
@@ -44,7 +44,7 @@ public class OpcionesMenu : MonoBehaviour
     {
         valueMusica = Mathf.Clamp01(valor);
         if (volumenMusica != null) volumenMusica.SetValueWithoutNotify(valueMusica);
-        PlayerPrefs.SetFloat("VolumenMusica", valueMusica);
+        EcoTilt.Audio.AudioPreferences.Music = valueMusica;
         var manager = FindFirstObjectByType<MenuManager>();
         var music = manager != null ? manager.GetComponent<AudioSource>() : null;
         if (music != null) music.volume = valueMusica;
@@ -55,7 +55,7 @@ public class OpcionesMenu : MonoBehaviour
     {
         valueEfectos = Mathf.Clamp01(valor);
         if (volumenEfectos != null) volumenEfectos.SetValueWithoutNotify(valueEfectos);
-        PlayerPrefs.SetFloat("VolumenEfectos", valueEfectos);
+        EcoTilt.Audio.AudioPreferences.Effects = valueEfectos;
         checkMute();
     }
 

@@ -35,6 +35,9 @@ namespace EcoTilt.Board
         public float BinWall = 0.08f;
         public float BinSpacing = 2.0f;
         public float BinRimY = -0.6f;
+        [Tooltip("Altura de la muralla de los contenedores por encima de la punta de la rampa.")]
+        public float EnclosureHeight = 1.3f;
+        public float EnclosureThickness = 0.25f;
 
         [Header("Inicio")]
         public float SpawnHeight = 1.2f;

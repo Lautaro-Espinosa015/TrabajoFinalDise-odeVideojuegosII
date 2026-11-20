@@ -16,7 +16,7 @@ public class MusicaFondo : MonoBehaviour
         fuente.playOnAwake = false;
         fuente.loop = true;
         fuente.spatialBlend = 0f;
-        fuente.volume = volumen * PlayerPrefs.GetFloat("VolumenMusica", 0.35f);
+        fuente.volume = volumen * EcoTilt.Audio.AudioPreferences.Music;
         fuente.clip = musica;
     }
 
@@ -36,6 +36,6 @@ public class MusicaFondo : MonoBehaviour
     private void Update()
     {
         // Permite ajustar el volumen durante Play desde el Inspector.
-        fuente.volume = volumen * PlayerPrefs.GetFloat("VolumenMusica", 0.35f);
+        fuente.volume = volumen * EcoTilt.Audio.AudioPreferences.Music;
     }
 }

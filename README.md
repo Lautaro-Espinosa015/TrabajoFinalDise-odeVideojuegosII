@@ -21,7 +21,7 @@ La textura se generó con ImageGen; el prompt está junto al PNG en `MenuArt/Tex
 
 Para abrir directamente el nivel:
 1. Abrir el proyecto en Unity 6000.3.23f1.
-2. Menú **EcoTilt > Construir escena del nivel** (genera `Assets/_Project/Scenes/Nivel1_Laberinto.unity`).
+2. Abrir `Assets/_Project/Scenes/Nivel1.unity` (si falta o quedó vieja, se genera sola; también desde **EcoTilt > Regenerar escena del nivel**).
 3. Play. Controles en editor: **WASD / flechas** o **click izquierdo + mouse**.
    En Android (o con Unity Remote 5) se usa la inclinación del teléfono.
 

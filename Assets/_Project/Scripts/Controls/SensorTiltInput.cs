@@ -1,11 +1,10 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace EcoTilt.Controls
 {
     /// <summary>
-    /// El tablero como espejo del teléfono: toma la dirección de la gravedad medida por el teléfono
-    /// (GravitySensor = acelerómetro + giroscopio fusionados en Android; si no existe, acelerómetro)
+    /// El tablero como espejo del teléfono: toma la dirección de la gravedad que mide el teléfono
+    /// (IGravitySource: giroscopio si está disponible, si no el sensor de gravedad o el acelerómetro)
     /// y calcula la rotación que tiene que tener el tablero para "sentir" la misma gravedad.
     ///
     /// La inclinación es RELATIVA a la posición en la que el jugador sostiene el teléfono al calibrar:
@@ -24,6 +23,8 @@ namespace EcoTilt.Controls
             public float Smoothing;
             /// <summary>Inclinaciones menores a este ángulo (grados) se ignoran.</summary>
             public float DeadZone;
+            /// <summary>Velocidad de giro máxima del tablero (grados por segundo). 0 = sin límite.</summary>
+            public float MaxDegreesPerSecond;
             /// <summary>Segundos que el teléfono tiene que estar quieto para calibrar.</summary>
             public float CalibrationTime;
             /// <summary>Cuánto puede moverse (grados) y seguir considerándose "quieto" al calibrar.</summary>
@@ -35,12 +36,12 @@ namespace EcoTilt.Controls
             public bool CalibrateOnFirstSample;
         }
 
-        private readonly Settings _settings;
+        private Settings _settings;
+        private readonly IGravitySource _gravity;
         private Vector3 _filtered;
         private Vector3 _lastRaw;
         private Quaternion _lastTilt = Quaternion.identity;
         private Quaternion _neutral = Quaternion.identity;
-        private string _source = "ninguno";
         private bool _hasSample;
 
         private bool _calibrating;
@@ -49,9 +50,10 @@ namespace EcoTilt.Controls
         private float _stableTime;
         private float _calibrationElapsed;
 
-        public SensorTiltInput(Settings settings)
+        public SensorTiltInput(Settings settings, IGravitySource gravity = null)
         {
             _settings = settings;
+            _gravity = gravity ?? new AttitudeGravitySource(new SensorGravitySource());
             if (settings.CalibrateOnFirstSample) Calibrate();
         }
 
@@ -67,12 +69,25 @@ namespace EcoTilt.Controls
 
         public Quaternion LastTilt => _lastTilt;
 
+        /// <summary>Nombre del sensor en uso.</summary>
+        public string SourceName => _gravity.Name;
+
+        /// <summary>Cambia la respuesta (ángulo, sensibilidad, filtro, zona muerta y velocidad) en caliente.</summary>
+        public void SetResponse(TiltResponseSettings response)
+        {
+            _settings.MaxAngle = response.MaxAngle;
+            _settings.Sensitivity = response.Sensitivity;
+            _settings.Smoothing = response.Smoothing;
+            _settings.DeadZone = response.DeadZone;
+            _settings.MaxDegreesPerSecond = response.MaxDegreesPerSecond;
+        }
+
         public string Diagnostics
         {
             get
             {
                 Vector3 e = _lastTilt.eulerAngles;
-                return $"Sensor: {_source}{(IsCalibrating ? "  [calibrando...]" : string.Empty)}\n" +
+                return $"Sensor: {_gravity.Name}{(IsCalibrating ? "  [calibrando...]" : string.Empty)}\n" +
                        $"Gravedad: ({_lastRaw.x:0.00}, {_lastRaw.y:0.00}, {_lastRaw.z:0.00})\n" +
                        $"Tablero: {Tilt.Magnitude(_lastTilt):0}°  (X {Mathf.DeltaAngle(0f, e.x):0}°, Z {Mathf.DeltaAngle(0f, e.z):0}°)";
             }
@@ -93,7 +108,7 @@ namespace EcoTilt.Controls
 
         public Quaternion ReadTilt()
         {
-            if (!TryReadGravity(out Vector3 raw))
+            if (!_gravity.TryRead(out Vector3 raw))
             {
                 _hasSample = false;
                 _lastRaw = _filtered = Vector3.zero;
@@ -126,11 +141,20 @@ namespace EcoTilt.Controls
             Quaternion tilt = SafeFromTo(felt, Vector3.down);
 
             float angle = Tilt.Magnitude(tilt);
-            if (angle <= _settings.DeadZone) return _lastTilt = Quaternion.identity;
-            float effective = (angle - _settings.DeadZone) * _settings.Sensitivity;
-            tilt = Quaternion.SlerpUnclamped(Quaternion.identity, tilt, effective / angle);
+            if (angle <= _settings.DeadZone)
+            {
+                tilt = Quaternion.identity;
+            }
+            else
+            {
+                float effective = (angle - _settings.DeadZone) * _settings.Sensitivity;
+                tilt = Tilt.Clamp(Quaternion.SlerpUnclamped(Quaternion.identity, tilt, effective / angle), _settings.MaxAngle);
+            }
 
-            _lastTilt = Tilt.Clamp(tilt, _settings.MaxAngle);
+            if (_settings.MaxDegreesPerSecond > 0f)
+                tilt = Quaternion.RotateTowards(_lastTilt, tilt, _settings.MaxDegreesPerSecond * Time.deltaTime);
+
+            _lastTilt = tilt;
             return _lastTilt;
         }
 
@@ -184,45 +208,6 @@ namespace EcoTilt.Controls
             float x = _settings.InvertX ? -device.x : device.x;
             float y = _settings.InvertY ? -device.y : device.y;
             return new Vector3(x, device.z, y);
-        }
-
-        private bool TryReadGravity(out Vector3 gravity)
-        {
-            GravitySensor gravitySensor = GravitySensor.current;
-            if (Ready(gravitySensor))
-            {
-                gravity = gravitySensor.gravity.ReadValue();
-                if (gravity.sqrMagnitude > 0.0001f)
-                {
-                    _source = $"GravitySensor ({gravitySensor.displayName})";
-                    return true;
-                }
-            }
-
-            Accelerometer accelerometer = Accelerometer.current;
-            if (Ready(accelerometer))
-            {
-                gravity = accelerometer.acceleration.ReadValue();
-                if (gravity.sqrMagnitude > 0.0001f)
-                {
-                    _source = $"Accelerometer ({accelerometer.displayName})";
-                    return true;
-                }
-            }
-
-            _source = gravitySensor == null && accelerometer == null
-                ? "ninguno conectado"
-                : "conectado, esperando datos";
-            gravity = Vector3.zero;
-            return false;
-        }
-
-        /// <summary>Activa el sensor si existe y todavía no está activo.</summary>
-        private static bool Ready(InputDevice device)
-        {
-            if (device == null) return false;
-            if (!device.enabled) InputSystem.EnableDevice(device);
-            return device.enabled;
         }
     }
 }

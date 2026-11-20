@@ -268,6 +268,48 @@ namespace EcoTilt.Board
                          new Vector3(pillar, top + 0.06f, pillar));
         }
 
+        /// <summary>Muralla recta entre dos puntos (en coordenadas de la salida), con un poco de solape en las uniones.</summary>
+        private void FenceSegment(System.Func<Vector3, Vector3> local, Quaternion frame, Vector3 from, Vector3 to,
+                                  float thickness, float bottom, float top)
+        {
+            Vector3 direction = to - from;
+            float length = direction.magnitude;
+            if (length < 0.05f) return;
+            Quaternion rotation = frame * Quaternion.LookRotation(direction / length, Vector3.up) * Quaternion.Euler(0f, 90f, 0f);
+            Fence(local((from + to) * 0.5f), rotation, length + thickness, thickness, bottom, top);
+        }
+
+        /// <summary>
+        /// Muralla calada: colisión maciza de <paramref name="bottom"/> a <paramref name="top"/> (altura local),
+        /// pero se ve como zócalo, columnas y baranda superior para no tapar los contenedores.
+        /// El largo va sobre el eje X local de <paramref name="rotation"/>.
+        /// </summary>
+        private void Fence(Vector3 center, Quaternion rotation, float length, float thickness, float bottom, float top)
+        {
+            float height = top - bottom;
+            Solid("Muralla", center + Vector3.up * (bottom + height * 0.5f), new Vector3(length, height, thickness), rotation);
+
+            float plinth = Mathf.Min(0.35f, height * 0.25f);
+            AddLocal(_theme.Plinth, center, rotation, new Vector3(0f, bottom + plinth * 0.5f, 0f),
+                     new Vector3(length, plinth, thickness));
+            AddLocal(_theme.Railing, center, rotation, new Vector3(0f, top - 0.05f, 0f),
+                     new Vector3(length, 0.1f, Mathf.Min(0.16f, thickness)));
+            AddLocal(_theme.Glow, center, rotation, new Vector3(0f, top + 0.005f, 0f),
+                     new Vector3(length - 0.1f, 0.01f, 0.05f));
+
+            float postHeight = height - plinth - 0.1f;
+            int posts = Mathf.Max(2, Mathf.RoundToInt(length / 0.45f) + 1);
+            for (int i = 0; i < posts; i++)
+            {
+                float x = -length * 0.5f + 0.06f + (length - 0.12f) * i / (posts - 1);
+                bool pillar = i == 0 || i == posts - 1;
+                float size = pillar ? thickness + 0.06f : _size.PostSize * 1.6f;
+                AddLocal(pillar ? _theme.DarkStone : _theme.Railing, center, rotation,
+                         new Vector3(x, bottom + plinth + postHeight * 0.5f, 0f),
+                         new Vector3(size, postHeight, size));
+            }
+        }
+
         // ------------------------------------------------------------------ salida: explanada, rampa y contenedores
         private void BuildExit(Transform binsParent, BoardBuildResult result)
         {
@@ -349,6 +391,12 @@ namespace EcoTilt.Board
             AddLocal(_theme.Glow, rampCenter, rampRotation, new Vector3(0f, thick * 0.5f + 0.004f, slope * 0.5f - 0.05f),
                      new Vector3(rampWidth, 0.012f, 0.08f));
 
+            // Barandas de la rampa: continúan las de la explanada para que el residuo no se caiga por los costados.
+            Quaternion alongRamp = rampRotation * Quaternion.Euler(0f, 90f, 0f);
+            for (int side = -1; side <= 1; side += 2)
+                Railing(rampCenter + rampRotation * new Vector3(side * (rampWidth * 0.5f + _wall * 0.5f), thick * 0.5f, 0f),
+                        alongRamp, slope, _wall);
+
             // Contenedores (lugares donde se colocan los prefabs)
             float binZ = apron + _size.RampLength + _size.GapLength + _size.BinDepth * 0.5f;
             int exitBins = Mathf.Max(1, _totalBins - _binCells.Count);
@@ -374,9 +422,29 @@ namespace EcoTilt.Board
                          frame, Vector3.zero, new Vector3(0.05f, 0.01f, beam - 0.2f));
             }
 
-            float binsHalf = _size.BinSpacing + _size.BinWidth * 0.5f;
-            result.Footprint.Encapsulate(Local(new Vector3(-binsHalf, 0f, endZ)));
-            result.Footprint.Encapsulate(Local(new Vector3(binsHalf, 0f, endZ)));
+            // Muralla alrededor de los contenedores: costados y fondo. El salto sigue siendo necesario
+            // (el vacío entre la rampa y los contenedores queda abierto), pero lo que se pasa de largo
+            // o sale torcido rebota y cae en un contenedor en vez de perderse.
+            float t = _size.EnclosureThickness;
+            float bottom = _size.BinRimY - _size.BinHeight;
+            float top = _size.RampRise + _size.EnclosureHeight;
+            float rampSide = rampWidth * 0.5f + _wall + t * 0.5f;   // por fuera de la baranda de la rampa
+            float binSide = outerX + t * 0.5f;                      // por fuera de los contenedores
+            float rampEnd = apron + _size.RampLength;
+            float binFront = binZ - _size.BinDepth * 0.5f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                // Embudo sobre el vacío: si la rampa es más ancha que los contenedores, desvía hacia adentro.
+                Vector3 a = new Vector3(side * rampSide, 0f, rampEnd - t);
+                Vector3 b = new Vector3(side * binSide, 0f, binFront);
+                FenceSegment(Local, frame, a, b, t, bottom, top);
+                FenceSegment(Local, frame, b, new Vector3(side * binSide, 0f, endZ + t), t, bottom, top);
+            }
+            Fence(Local(new Vector3(0f, 0f, endZ + t * 0.5f)), frame, 2f * binSide + t, t, bottom, top);
+
+            float binsHalf = Mathf.Max(_size.BinSpacing + _size.BinWidth * 0.5f, Mathf.Max(binSide, rampSide) + t);
+            result.Footprint.Encapsulate(Local(new Vector3(-binsHalf, 0f, endZ + t)));
+            result.Footprint.Encapsulate(Local(new Vector3(binsHalf, 0f, endZ + t)));
         }
 
         // ------------------------------------------------------------------ inicio

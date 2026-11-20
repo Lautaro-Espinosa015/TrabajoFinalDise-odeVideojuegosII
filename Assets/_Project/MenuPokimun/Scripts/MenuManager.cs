@@ -24,7 +24,7 @@ public class MenuManager : MonoBehaviour
         Cursor.visible = true;
         Volver();
         var music = GetComponent<AudioSource>();
-        if (music != null) music.volume = PlayerPrefs.GetFloat("VolumenMusica", 0.35f);
+        if (music != null) music.volume = EcoTilt.Audio.AudioPreferences.Music;
     }
 
     private void Update()
