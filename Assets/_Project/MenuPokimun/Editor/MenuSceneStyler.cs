@@ -94,15 +94,13 @@ public static class MenuSceneStyler
         options.volumenEfectos = Slider(op, "Volumen efectos", 46, 380);
         options.volumenEfectos.SetValueWithoutNotify(0.85f);
         UnityEventTools.AddPersistentListener(options.volumenEfectos.onValueChanged, options.changeVolumenEfectos);
-        options.fullscreen = Toggle(op, 46, 455);
-        UnityEventTools.AddPersistentListener(options.fullscreen.onValueChanged, options.changeFullscreen);
-        var fps = Button(op, "FPS: 60", 40, 530, 430, options.CycleFPS);
+        var fps = Button(op, "FPS: 60", 40, 465, 430, options.CycleFPS);
         options.fpsText = fps.GetComponentInChildren<TextMeshProUGUI>();
         Button(op, "Volver", 40, 636, 430, menu.Volver);
 
         menu.menuTutorial = Panel(ui, "Tutorial", "Cómo jugar", "El tablero es tu control.");
         Text(menu.menuTutorial.transform,
-            "01   INCLINÁ\nMové suavemente el teléfono para guiar el residuo. En PC, usá WASD, flechas o clic izquierdo y mouse.\n\n02   SEPARÁ\nLlevá cada residuo al contenedor de su categoría. Cuando corresponda, tomá impulso en la rampa.\n\n03   AVANZÁ\nSepará 6 residuos por nivel. Las caídas restan vidas; los aciertos recuperan una.\n\nAl empezar o continuar, mantené el teléfono quieto para calibrar.",
+            "01   INCLINÁ\nMové suavemente el teléfono para guiar el residuo.\n\n02   SEPARÁ\nLlevá cada residuo al contenedor de su categoría. Cuando corresponda, tomá impulso en la rampa.\n\n03   AVANZÁ\nSepará 6 residuos por nivel. Las caídas restan vidas; los aciertos recuperan una.\n\nAl empezar o continuar, mantené el teléfono quieto para calibrar.",
             46, 215, 418, 405, 21, Cream);
         Button(menu.menuTutorial.transform, "Volver", 40, 636, 430, menu.Volver);
         menu.menuCreditos = Panel(ui, "Créditos", "Créditos", "EcoTilt · Inclina, separá y reciclá");
@@ -228,20 +226,6 @@ public static class MenuSceneStyler
         slider.minValue = 0f;
         slider.maxValue = 1f;
         return slider;
-    }
-
-    static Toggle Toggle(Transform parent, float x, float y)
-    {
-        var root = Rect(parent, "Pantalla completa", x, y, 414, 48);
-        var toggle = root.gameObject.AddComponent<Toggle>();
-        var box = Rect(root, "Casilla", 0, 4, 32, 32).gameObject.AddComponent<Image>();
-        box.color = Gold;
-        var check = Rect(box.transform, "Marca", 6, 6, 20, 20).gameObject.AddComponent<Image>();
-        check.color = new Color(0.06f, 0.15f, 0.13f);
-        toggle.targetGraphic = box;
-        toggle.graphic = check;
-        Text(root, "Pantalla completa (PC)", 50, 3, 360, 42, 22, Cream);
-        return toggle;
     }
 
     static void CreateBoard(Scene menuScene, MenuBoardDemo demo)

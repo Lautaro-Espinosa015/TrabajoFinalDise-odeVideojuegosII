@@ -4607,11 +4607,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: EcoTilt.Runtime::EcoTilt.Controls.TiltInputProvider
   useSensors: 1
   faithfulResponse:
-    MaxAngle: 90
-    Sensitivity: 1
-    Smoothing: 30
-    DeadZone: 1
-    MaxDegreesPerSecond: 0
+    MaxAngle: 35
+    Sensitivity: 0.7
+    Smoothing: 10
+    DeadZone: 2
+    MaxDegreesPerSecond: 180
   smoothResponse:
     MaxAngle: 30
     Sensitivity: 0.6

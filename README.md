@@ -8,8 +8,10 @@ El jugador inclina un tablero laberíntico suspendido (acelerómetro + giroscopi
 
 ## Cómo probar
 Abrir `Assets/_Project/Scenes/MenuPrincipal.unity` y pulsar Play para iniciar desde el menú.
-**Jugar** carga `Nivel1`; **Opciones** permite ajustar música, efectos, pantalla completa (PC)
+**Jugar** carga `Nivel1`; **Opciones** permite ajustar música y efectos
 y FPS. También incluye tutorial, créditos y salir. En pausa se puede volver al menú principal.
+En pausa, Fiel ofrece una respuesta ligeramente superior a Suave y un variador de sensibilidad
+entre 0,60 y 0,80 (inicialmente 0,70). El ajuste se conserva entre partidas.
 Los volúmenes y el límite de FPS se guardan entre sesiones. El menú utiliza audio nativo de Unity,
 sin Wwise ni reconocimiento de voz. Para comprobar sus conexiones: **EcoTilt > Verificar menú principal**.
 

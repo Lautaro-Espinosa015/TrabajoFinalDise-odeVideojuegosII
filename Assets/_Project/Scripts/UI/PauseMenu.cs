@@ -19,7 +19,6 @@ namespace EcoTilt.UI
 
         private const string MainMenuScene = "Assets/_Project/Scenes/MenuPrincipal.unity";
         private ITiltResponseSelector _response;
-        private TiltInputProvider _provider;
 
         private void Awake()
         {
@@ -27,13 +26,14 @@ namespace EcoTilt.UI
             if (_response == null)
                 foreach (MonoBehaviour behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
                     if (behaviour is ITiltResponseSelector selector) { _response = selector; break; }
-            _provider = _response as TiltInputProvider;
         }
 
         private GUIStyle _title;
         private GUIStyle _text;
         private GUIStyle _button;
         private GUIStyle _small;
+        private GUIStyle _slider;
+        private GUIStyle _sliderThumb;
 
         private void OnGUI()
         {
@@ -99,12 +99,24 @@ namespace EcoTilt.UI
 
             string hint = _response == null ? string.Empty
                 : _response.ResponseMode == TiltResponseMode.Fiel
-                    ? "Fiel: el tablero copia tu teléfono al instante."
+                    ? "Fiel: un poco más de respuesta que Suave."
                     : "Suave: movimientos más tranquilos y limitados.";
-            string sensor = _provider != null ? $"\nControl: {_provider.SensorName}" : string.Empty;
-            GUI.Label(new Rect(left + half + gap, y + 2f * step - 6f * scale, half, height + 60f * scale),
-                      hint + sensor, _small);
+            if (_response != null)
+            {
+                Rect slider = Cell(1, 2);
+                GUI.Label(new Rect(slider.x, slider.y, slider.width, 28f * scale),
+                    $"Sensibilidad Fiel: {_response.FaithfulSensitivity:0.00}", _small);
+                bool previousEnabled = GUI.enabled;
+                GUI.enabled = previousEnabled && _response.ResponseMode == TiltResponseMode.Fiel;
+                float value = GUI.HorizontalSlider(new Rect(slider.x, slider.y + 30f * scale, slider.width, 40f * scale),
+                    _response.FaithfulSensitivity, TiltResponsePreference.MinSensitivity, TiltResponsePreference.MaxSensitivity,
+                    _slider, _sliderThumb);
+                if (!Mathf.Approximately(value, _response.FaithfulSensitivity)) _response.FaithfulSensitivity = value;
+                GUI.enabled = previousEnabled;
+            }
             y += 3f * step;
+            GUI.Label(new Rect(left, y, wide, 30f * scale), hint, _small);
+            y += 34f * scale;
             GUI.Label(new Rect(left, y, wide, 60f * scale),
                       "Al continuar, sostené el teléfono quieto un momento para calibrar.", _text);
         }
@@ -130,6 +142,9 @@ namespace EcoTilt.UI
             _button = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(30f * scale), fontStyle = FontStyle.Bold };
             _small = new GUIStyle(_text) { fontSize = Mathf.RoundToInt(20f * scale) };
             _small.normal.textColor = new Color(0.85f, 0.92f, 0.88f);
+            _slider = new GUIStyle(GUI.skin.horizontalSlider) { fixedHeight = 14f * scale };
+            _sliderThumb = new GUIStyle(GUI.skin.horizontalSliderThumb)
+                { fixedWidth = 40f * scale, fixedHeight = 40f * scale };
         }
     }
 }
