@@ -229,7 +229,8 @@ namespace EcoTilt.EditorTools
         {
             var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
             scenes.RemoveAll(s => s.path == ScenePath || System.Array.IndexOf(ObsoleteScenes, s.path) >= 0);
-            scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
+            int menuIndex = scenes.FindIndex(s => s.path == "Assets/_Project/Scenes/MenuPrincipal.unity");
+            scenes.Insert(menuIndex >= 0 ? menuIndex + 1 : 0, new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

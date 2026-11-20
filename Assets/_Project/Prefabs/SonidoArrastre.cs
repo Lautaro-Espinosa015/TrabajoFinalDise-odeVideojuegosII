@@ -23,12 +23,12 @@ public class SonidoArrastre : MonoBehaviour
         if (sonido != null) audioSource.clip = sonido;
         audioSource.loop = true;
         audioSource.spatialBlend = 0f;
-        audioSource.volume = volumen;
+        audioSource.volume = volumen * PlayerPrefs.GetFloat("VolumenEfectos", 0.85f);
     }
 
     void Update()
     {
-        audioSource.volume = volumen;
+        audioSource.volume = volumen * PlayerPrefs.GetFloat("VolumenEfectos", 0.85f);
         // Cada residuo suena solamente por su propio movimiento, también en celular.
         float umbral = Mathf.Max(0.01f, velocidadMinima);
         bool seMueve = Time.timeScale > 0f && !rb.isKinematic && !rb.IsSleeping() &&
