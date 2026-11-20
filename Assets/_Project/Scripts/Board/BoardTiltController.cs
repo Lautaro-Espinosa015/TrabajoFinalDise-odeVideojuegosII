@@ -15,9 +15,12 @@ namespace EcoTilt.Board
         [SerializeField] private MonoBehaviour inputSource;
         [Tooltip("Suavizado extra del tablero. 0 = sigue al instante (control total).")]
         [SerializeField, Range(0f, 30f)] private float smoothing = 0f;
-        [Tooltip("Tope de seguridad de la velocidad de giro (grados por segundo). 0 = sin tope. " +
-                 "El límite que se siente al jugar depende de la respuesta elegida (Fiel / Suave) en el input.")]
-        [SerializeField, Min(0f)] private float angularSpeedCap = 720f;
+        [Tooltip("Qué tan rápido alcanza el tablero la inclinación pedida (Hz). Funciona como un resorte amortiguado: " +
+                 "acelera y frena de a poco, así las paredes no \"golpean\" a los residuos. 6 Hz ≈ 0,05 s de demora.")]
+        [SerializeField, Range(1f, 15f)] private float responseFrequency = 6f;
+        [Tooltip("Velocidad de giro máxima del tablero (grados por segundo). El tablero mide 16 m: a 360°/s el borde " +
+                 "ya se mueve a 50 m/s, por eso hace falta un tope.")]
+        [SerializeField, Min(30f)] private float speedLimit = 360f;
         [Tooltip("Al empezar, el tablero pasa de nivelado al control del jugador en este tiempo (segundos).")]
         [SerializeField, Min(0f)] private float startBlendTime = 1.5f;
 
@@ -25,6 +28,7 @@ namespace EcoTilt.Board
         private ITiltInput _input;
         private Quaternion _restRotation;
         private Quaternion _current = Quaternion.identity;
+        private Vector3 _angularVelocity; // rad/s, en ejes del tablero en reposo
         private float _elapsed;
 
         /// <summary>Inclinación actual respecto de la posición nivelada.</summary>
@@ -68,11 +72,28 @@ namespace EcoTilt.Board
 
             if (smoothing > 0f)
                 target = Quaternion.Slerp(_current, target, 1f - Mathf.Exp(-smoothing * Time.fixedDeltaTime));
-            if (angularSpeedCap > 0f)
-                target = Quaternion.RotateTowards(_current, target, angularSpeedCap * Time.fixedDeltaTime);
-
-            _current = target;
+            _current = FollowTarget(target, Time.fixedDeltaTime);
             _body.MoveRotation(_restRotation * _current);
+        }
+
+        /// <summary>
+        /// Resorte críticamente amortiguado hacia la inclinación pedida: sin rebote y sin saltos de velocidad.
+        /// Un salto brusco de la lectura (temblor, cambio de sensor) se convierte en un movimiento suave.
+        /// </summary>
+        private Quaternion FollowTarget(Quaternion target, float dt)
+        {
+            Quaternion error = target * Quaternion.Inverse(_current);
+            if (error.w < 0f) error = new Quaternion(-error.x, -error.y, -error.z, -error.w); // camino corto
+            error.ToAngleAxis(out float angle, out Vector3 axis);
+            Vector3 offset = float.IsFinite(axis.x) && angle > 0.0001f ? axis.normalized * (angle * Mathf.Deg2Rad) : Vector3.zero;
+
+            float w = 2f * Mathf.PI * responseFrequency;
+            _angularVelocity += (w * w * offset - 2f * w * _angularVelocity) * dt;
+            _angularVelocity = Vector3.ClampMagnitude(_angularVelocity, speedLimit * Mathf.Deg2Rad);
+
+            float step = _angularVelocity.magnitude * dt;
+            if (step < 1e-6f) return _current;
+            return Quaternion.AngleAxis(step * Mathf.Rad2Deg, _angularVelocity / _angularVelocity.magnitude) * _current;
         }
     }
 }

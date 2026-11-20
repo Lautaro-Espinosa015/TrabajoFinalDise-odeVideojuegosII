@@ -29,11 +29,16 @@ namespace EcoTilt.Controls
         private const float AcceptError = 10f;      // error medio máximo para aceptar una convención (grados)
         private const float AcceptMargin = 8f;      // la segunda mejor tiene que estar al menos así de lejos
         private const float RejectError = 30f;      // si la elegida se aleja tanto, se vuelve a la referencia
+        private const float MaxLearningSpeed = 90f; // °/s: más rápido, el sensor de referencia llega tarde y no sirve para comparar
+        private const float BlendTime = 0.5f;       // segundos para pasar de un sensor al otro sin saltos
 
         private readonly IGravitySource _reference;
         private readonly float[] _error = new float[Candidates];
         private float _evidence;
         private int _chosen = -1;
+        private int _active = -1;   // convención usada para la salida (sigue mientras se desvanece)
+        private float _blend;       // 0 = referencia, 1 = giroscopio
+        private Vector3 _previousProbe;
         private AttitudeSensor _sensor;
 
         public AttitudeGravitySource(IGravitySource reference)
@@ -59,16 +64,31 @@ namespace EcoTilt.Controls
             }
 
             Quaternion inverse = Quaternion.Inverse(attitude);
-            if (hasReference) Learn(inverse, reference.normalized);
+            if (hasReference && MovingSlowly(inverse)) Learn(inverse, reference.normalized);
 
-            if (_chosen < 0)
+            // Transición suave entre referencia y giroscopio: un cambio de sensor nunca es un salto del tablero.
+            if (_chosen >= 0) _active = _chosen;
+            _blend = Mathf.MoveTowards(_blend, _chosen >= 0 ? 1f : 0f, Time.deltaTime / BlendTime);
+
+            if (_active < 0 || _blend <= 0f)
             {
                 gravity = reference;
                 return hasReference;
             }
 
-            gravity = Candidate(inverse, _chosen);
+            Vector3 gyro = Candidate(inverse, _active);
+            gravity = hasReference && _blend < 1f ? Vector3.Slerp(reference.normalized, gyro, _blend) : gyro;
             return true;
+        }
+
+        /// <summary>Solo se compara contra la referencia cuando el teléfono gira despacio (la referencia tiene demora).</summary>
+        private bool MovingSlowly(Quaternion inverse)
+        {
+            Vector3 probe = inverse * Vector3.up; // todas las convenciones giran a la misma velocidad
+            float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+            bool slow = _previousProbe == Vector3.zero || Vector3.Angle(_previousProbe, probe) / dt <= MaxLearningSpeed;
+            _previousProbe = probe;
+            return slow;
         }
 
         private void Learn(Quaternion inverse, Vector3 reference)

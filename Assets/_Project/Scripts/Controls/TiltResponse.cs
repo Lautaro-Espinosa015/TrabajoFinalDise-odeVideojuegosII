@@ -20,9 +20,11 @@ namespace EcoTilt.Controls
         [Range(10f, 90f)] public float MaxAngle;
         [Tooltip("1 = espejo exacto del teléfono. Menos de 1 suaviza, más de 1 exagera.")]
         [Range(0.3f, 2f)] public float Sensitivity;
-        [Tooltip("Velocidad del filtro de lecturas: 0 = sin filtro. Más alto = sigue más rápido " +
-                 "(8 ≈ 0,13 s de demora, 30 ≈ 0,03 s).")]
-        [Range(0f, 60f)] public float Smoothing;
+        [Tooltip("Filtro adaptativo: frecuencia de corte con el teléfono casi quieto (Hz). 0 = sin filtro. " +
+                 "Más bajo = menos temblor transmitido al tablero.")]
+        [Range(0f, 10f)] public float Smoothing;
+        [Tooltip("Cuánto se abre el filtro cuando el teléfono gira rápido: más alto = menos demora en los giros.")]
+        [Range(0f, 5f)] public float SmoothingSpeedGain;
         [Tooltip("Inclinaciones menores a este ángulo se ignoran (temblor de la mano).")]
         [Range(0f, 10f)] public float DeadZone;
         [Tooltip("Velocidad de giro máxima en grados por segundo. 0 = sin límite.")]
@@ -30,12 +32,12 @@ namespace EcoTilt.Controls
 
         public static TiltResponseSettings Faithful => new TiltResponseSettings
         {
-            MaxAngle = 90f, Sensitivity = 1f, Smoothing = 30f, DeadZone = 1f, MaxDegreesPerSecond = 0f
+            MaxAngle = 90f, Sensitivity = 1f, Smoothing = 2f, SmoothingSpeedGain = 1.5f, DeadZone = 1f, MaxDegreesPerSecond = 0f
         };
 
         public static TiltResponseSettings Smooth => new TiltResponseSettings
         {
-            MaxAngle = 30f, Sensitivity = 0.6f, Smoothing = 8f, DeadZone = 2f, MaxDegreesPerSecond = 150f
+            MaxAngle = 30f, Sensitivity = 0.6f, Smoothing = 1f, SmoothingSpeedGain = 0.5f, DeadZone = 2f, MaxDegreesPerSecond = 150f
         };
     }
 

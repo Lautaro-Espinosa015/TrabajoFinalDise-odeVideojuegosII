@@ -19,8 +19,11 @@ namespace EcoTilt.Controls
             public float MaxAngle;
             /// <summary>1 = espejo exacto. Más de 1 exagera los movimientos, menos de 1 los suaviza.</summary>
             public float Sensitivity;
-            /// <summary>Filtro de las lecturas. 0 = sin filtro; 5-10 absorbe el temblor de la mano.</summary>
+            /// <summary>Filtro adaptativo (One Euro): frecuencia de corte en reposo, en Hz. 0 = sin filtro.
+            /// Bajo = quita el temblor de la mano cuando el teléfono está casi quieto.</summary>
             public float Smoothing;
+            /// <summary>Cuánto se abre el filtro cuando el teléfono se mueve rápido (menos demora en los giros).</summary>
+            public float SmoothingSpeedGain;
             /// <summary>Inclinaciones menores a este ángulo (grados) se ignoran.</summary>
             public float DeadZone;
             /// <summary>Velocidad de giro máxima del tablero (grados por segundo). 0 = sin límite.</summary>
@@ -39,6 +42,7 @@ namespace EcoTilt.Controls
         private Settings _settings;
         private readonly IGravitySource _gravity;
         private Vector3 _filtered;
+        private Vector3 _filteredSpeed;
         private Vector3 _lastRaw;
         private Quaternion _lastTilt = Quaternion.identity;
         private Quaternion _neutral = Quaternion.identity;
@@ -78,6 +82,7 @@ namespace EcoTilt.Controls
             _settings.MaxAngle = response.MaxAngle;
             _settings.Sensitivity = response.Sensitivity;
             _settings.Smoothing = response.Smoothing;
+            _settings.SmoothingSpeedGain = response.SmoothingSpeedGain;
             _settings.DeadZone = response.DeadZone;
             _settings.MaxDegreesPerSecond = response.MaxDegreesPerSecond;
         }
@@ -131,10 +136,7 @@ namespace EcoTilt.Controls
                 if (_calibrating) return _lastTilt = Quaternion.identity;
             }
 
-            if (_settings.Smoothing > 0f)
-                _filtered = Vector3.Lerp(_filtered, raw, 1f - Mathf.Exp(-_settings.Smoothing * Time.deltaTime));
-            else
-                _filtered = raw;
+            _filtered = _settings.Smoothing > 0f ? OneEuro(raw.normalized, Time.deltaTime) : raw;
 
             // Gravedad vista desde el tablero = gravedad vista desde el teléfono (respecto de la posición neutra).
             Vector3 felt = _neutral * ToBoardAxes(_filtered.normalized);
@@ -186,6 +188,27 @@ namespace EcoTilt.Controls
             _neutral = SafeFromTo(ToBoardAxes(_calibrationSum.normalized), Vector3.down);
             _filtered = gravity;
             _calibrating = false;
+        }
+
+        /// <summary>
+        /// Filtro "One Euro": con el teléfono casi quieto filtra fuerte (no transmite el temblor de la mano al
+        /// tablero, que mide 16 m y lo amplifica); cuando el jugador gira rápido el filtro se abre y casi no
+        /// agrega demora.
+        /// </summary>
+        private Vector3 OneEuro(Vector3 value, float dt)
+        {
+            dt = Mathf.Max(dt, 0.0001f);
+            Vector3 previous = _filtered.sqrMagnitude > 0.0001f ? _filtered.normalized : value;
+            Vector3 speed = (value - previous) / dt;
+            _filteredSpeed = Vector3.Lerp(_filteredSpeed, speed, Alpha(1f, dt));
+            float cutoff = _settings.Smoothing + _settings.SmoothingSpeedGain * _filteredSpeed.magnitude;
+            return Vector3.Lerp(previous, value, Alpha(cutoff, dt));
+        }
+
+        private static float Alpha(float cutoffHz, float dt)
+        {
+            float tau = 1f / (2f * Mathf.PI * Mathf.Max(cutoffHz, 0.01f));
+            return 1f / (1f + tau / dt);
         }
 
         /// <summary>

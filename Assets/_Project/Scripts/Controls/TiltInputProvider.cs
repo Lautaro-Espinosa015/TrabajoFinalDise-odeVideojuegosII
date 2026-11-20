@@ -14,9 +14,9 @@ namespace EcoTilt.Controls
         [Header("Teléfono: el tablero copia su orientación")]
         [SerializeField] private bool useSensors = true;
         [Tooltip("Respuesta \"Fiel\": el tablero copia al teléfono casi sin demora.")]
-        [SerializeField] private TiltResponseSettings faithfulResponse = TiltResponseSettings.Faithful;
+        [SerializeField] private TiltResponseSettings fiel = TiltResponseSettings.Faithful;
         [Tooltip("Respuesta \"Suave\": movimientos más tranquilos.")]
-        [SerializeField] private TiltResponseSettings smoothResponse = TiltResponseSettings.Smooth;
+        [SerializeField] private TiltResponseSettings suave = TiltResponseSettings.Smooth;
         [Header("Calibración (posición inicial = tablero horizontal)")]
         [Tooltip("Segundos que el teléfono tiene que estar quieto para tomar su posición como horizontal.")]
         [SerializeField, Range(0.2f, 3f)] private float calibrationTime = 0.8f;
@@ -58,7 +58,7 @@ namespace EcoTilt.Controls
         }
 
         private TiltResponseSettings CurrentResponse =>
-            _mode == TiltResponseMode.Suave ? smoothResponse : faithfulResponse;
+            _mode == TiltResponseMode.Suave ? suave : fiel;
 
         public bool HasData => _sensor != null && _sensor.HasData;
         public bool IsCalibrating => _sensor != null && _sensor.IsCalibrating;

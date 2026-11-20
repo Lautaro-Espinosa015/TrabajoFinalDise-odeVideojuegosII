@@ -20,8 +20,8 @@ namespace EcoTilt.EditorTools
             EditorSceneManager.OpenScene("Assets/_Project/Scenes/Nivel1.unity");
             var provider = UnityEngine.Object.FindFirstObjectByType<TiltInputProvider>();
             Check(provider != null, "Nivel1 tiene proveedor de sensores");
-            var faithful = (TiltResponseSettings)typeof(TiltInputProvider).GetField("faithfulResponse", Private).GetValue(provider);
-            var smooth = (TiltResponseSettings)typeof(TiltInputProvider).GetField("smoothResponse", Private).GetValue(provider);
+            var faithful = (TiltResponseSettings)typeof(TiltInputProvider).GetField("fiel", Private).GetValue(provider);
+            var smooth = (TiltResponseSettings)typeof(TiltInputProvider).GetField("suave", Private).GetValue(provider);
             Check(faithful.MaxAngle == 90f && faithful.Sensitivity == 1f && faithful.MaxDegreesPerSecond == 0f,
                 "Respuesta Fiel: 1 a 1, hasta 90°, sin límite de giro");
             Check(smooth.MaxAngle == 30f && smooth.Sensitivity < 1f && smooth.MaxDegreesPerSecond > 0f,

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using EcoTilt.Board;
+using EcoTilt.Gameplay;
 using UnityEngine;
 
 namespace EcoTilt.Waste
@@ -78,6 +79,7 @@ namespace EcoTilt.Waste
             WasteItem item = Instantiate(prefab, point.position + point.rotation * offset,
                                          point.rotation * prefab.RestRotation, transform);
             item.Respawnable.Configure(point, offset);
+            if (!item.TryGetComponent(out VelocityLimiter _)) item.gameObject.AddComponent<VelocityLimiter>();
             _active.Add(item);
             return item;
         }
